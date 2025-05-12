@@ -1,0 +1,19 @@
+# Virtual Environment
+venv/
+*.venv
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# OS-specific files (macOS)
+.DS_Store
+
+# IDE specific files (optional, add if you use these)
+.vscode/
+.idea/
+
+# Temporary files / logs (optional)
+*.log
+*.tmp
