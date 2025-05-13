@@ -1,6 +1,6 @@
 # LLM Entropy Visualizer
 
-A simple web application to visualize the Shannon entropy of the next token prediction from an LLM (e.g., GPT-2) as you type. Also shows the probability distribution of the top predicted tokens.
+App to visualize the entropy of the next token prediction from GPT-2 as you type. Also shows the probability distribution of the top 15 predicted tokens.
 
 ![Image of the visualization](./images/llm-entropy.png)
 
