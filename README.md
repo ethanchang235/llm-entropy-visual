@@ -1,6 +1,6 @@
 # LLM Entropy Visualizer
 
-App to visualize the entropy of the next token prediction from GPT-2 as you type. Also shows the probability distribution of the top 15 predicted tokens.
+App to visualize the entropy of the next token prediction from GPT-2 as you type. Also shows the probability distribution of the top predicted tokens.
 
 ![Image of the visualization](./images/llm-entropy.png)
 
