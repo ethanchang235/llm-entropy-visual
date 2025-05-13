@@ -4,215 +4,331 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LLM Entropy Visualizer (Local)</title>
-    <script src='https://cdn.plot.ly/plotly-latest.min.js'></script>
+    <title>LLM Entropy Visualizer</title>
+    <!-- Updated Plotly CDN link to a specific recent version (example, check for latest) -->
+    <script src='https://cdn.plot.ly/plotly-2.29.1.min.js'></script> 
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol"; display: flex; flex-direction: column; align-items: center; margin-top: 20px; background-color: #f8f9fa; color: #212529;}
-        h1 { color: #343a40; text-align: center; margin-bottom: 20px; }
-        #container { display: flex; flex-direction: column; width: 95%; max-width: 1200px; gap: 20px; background-color: #ffffff; padding: 25px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol"; display: flex; flex-direction: column; align-items: center; margin-top: 15px; background-color: #f8f9fa; color: #212529; font-size: 15px;}
+        h1 { color: #343a40; text-align: center; margin-bottom: 5px; font-size: 1.8em;}
+        #model-info-header { text-align: center; color: #495057; margin-bottom: 15px; font-size: 1.1em; }
+        #app-container { display: flex; flex-direction: column; width: 96%; max-width: 1300px; gap: 20px; }
         
-        #input-controls-section { display: flex; flex-direction: column; gap: 15px; }
-        textarea { width: 100%; min-height: 150px; font-size: 1.1em; padding: 12px; box-sizing: border-box; border: 1px solid #ced4da; border-radius: 4px; resize: vertical; }
+        .panel { background-color: #ffffff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.08); }
+
+        #config-panel { display: flex; flex-wrap: wrap; gap: 20px; align-items: center; justify-content: flex-start; }
+        .config-item { display: flex; flex-direction: column; gap: 5px; }
+        .config-item label { font-size: 0.9em; color: #495057; }
+        .config-item input[type="number"], .config-item input[type="range"] {
+            padding: 8px 10px; font-size: 0.95em; border: 1px solid #ced4da; border-radius: 4px; min-width: 120px;
+        }
+        #temperature-value { font-weight: bold; color: #007bff; }
+
+        #main-content { display: flex; flex-direction: column; gap: 20px; }
+        @media (min-width: 992px) { /* Larger screens */
+            #main-content { flex-direction: row; }
+            #input-analysis-section { flex: 2; }
+            #output-section { flex: 3; }
+        }
+
+        #input-analysis-section { display: flex; flex-direction: column; gap: 15px; }
+        textarea { width: 100%; min-height: 150px; font-size: 1.05em; padding: 12px; box-sizing: border-box; border: 1px solid #ced4da; border-radius: 4px; resize: vertical; }
         
-        #controls-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 15px; margin-bottom: 15px; }
-        #entropy-display { font-size: 1.4em; font-weight: bold; color: #007bff; white-space: nowrap; }
-        #status-container { display: flex; align-items: center; gap: 8px; font-style: italic; color: #6c757d; }
-        .spinner { border: 3px solid #f3f3f3; border-top: 3px solid #3498db; border-radius: 50%; width: 18px; height: 18px; animation: spin 1s linear infinite; display: none; }
+        #status-bar { display: flex; justify-content: space-between; align-items: center; gap: 15px; margin-top: 10px; padding: 8px 0; flex-wrap: wrap;}
+        #entropy-display { font-size: 1.3em; font-weight: bold; color: #007bff; white-space: nowrap; }
+        #global-status-container { display: flex; align-items: center; gap: 8px; font-style: italic; color: #6c757d; flex-grow: 1; }
+        .spinner { border: 3px solid #f3f3f3; border-top: 3px solid #3498db; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; display: none; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        #top-k-control { display: flex; align-items: center; gap: 8px; }
-        #top-k-control label { font-size: 0.95em; }
-        #top-k-input { width: 60px; padding: 5px 8px; font-size: 0.95em; border: 1px solid #ced4da; border-radius: 4px; }
+        #input-tokenization-display { margin-top: 10px; padding: 10px; background-color: #e9ecef; border-radius: 4px; font-size: 0.9em; max-height: 100px; overflow-y: auto; }
+        #input-tokenization-display .token { background-color: #fff; padding: 2px 5px; margin: 2px; border-radius: 3px; border: 1px solid #ddd; display: inline-block; font-family: monospace;}
+        #input-tokenization-display .token .token-id { font-size: 0.8em; color: #888; margin-left: 3px;}
 
-        #probability-chart { width: 100%; min-height: 450px; }
+        #output-section { display: flex; flex-direction: column; }
+        #probability-chart { width: 100%; min-height: 400px; }
         
-        @media (min-width: 768px) {
-            #container { flex-direction: row; gap: 30px; }
-            #input-controls-section { flex: 1; }
-            #output-section { flex: 1; display: flex; flex-direction: column; }
-        }
         .error-message { color: #dc3545; font-weight: bold; }
+        .info-message { color: #17a2b8; }
+        .success-message { color: #28a745; }
+
+        button:disabled, select:disabled, input:disabled { cursor: not-allowed; opacity: 0.7; }
     </style>
 </head>
 <body>
-    <h1>LLM Next Token Entropy Visualizer</h1>
-    <div id="container">
-        <div id="input-controls-section">
-            <label for="text-input">Enter text:</label>
-            <textarea id="text-input" placeholder="Type here... (or leave empty to predict first token)"></textarea>
-            
-            <div id="controls-row">
-                <div id="entropy-display">Entropy: -</div>
-                <div id="top-k-control">
-                    <label for="top-k-input">Top K Tokens:</label>
-                    <input type="number" id="top-k-input" value="15" min="1" max="50">
-                </div>
+    <h1>LLM Entropy & Token Visualizer</h1>
+    <div id="model-info-header">Model: <strong id="model-name-display">{{ model_display_name }}</strong></div>
+
+
+    <div id="app-container">
+        <div id="config-panel" class="panel">
+            <div class="config-item">
+                <label for="top-k-input">Top K Tokens (1-50):</label>
+                <input type="number" id="top-k-input" value="15" min="1" max="50">
             </div>
-            <div id="status-container">
-                <div class="spinner" id="loading-spinner"></div>
-                <div id="status">Initializing...</div>
+            <div class="config-item">
+                <label for="temperature-input">Temperature (<span id="temperature-value">1.00</span>):</label>
+                <input type="range" id="temperature-input" min="0.01" max="2.0" step="0.01" value="1.0">
             </div>
         </div>
-        <div id="output-section">
-            <div id="probability-chart"></div>
+
+        <div id="main-content">
+            <div id="input-analysis-section" class="panel">
+                <label for="text-input">Enter text (or leave empty to predict first token):</label>
+                <textarea id="text-input" placeholder="Type here..."></textarea>
+                <div id="input-tokenization-container">
+                    <label>Input Tokenization:</label>
+                    <div id="input-tokenization-display">No input text.</div>
+                </div>
+                 <div id="status-bar">
+                    <div id="entropy-display">Entropy: -</div>
+                    <div id="global-status-container">
+                        <div class="spinner" id="loading-spinner"></div>
+                        <div id="global-status">Initializing...</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="output-section" class="panel">
+                <div id="probability-chart"></div>
+            </div>
         </div>
     </div>
 
     <script>
+        // DOM Elements
         const textInput = document.getElementById('text-input');
         const entropyDisplay = document.getElementById('entropy-display');
         const chartDiv = document.getElementById('probability-chart');
-        const statusDiv = document.getElementById('status');
+        const globalStatusDiv = document.getElementById('global-status');
         const topKInput = document.getElementById('top-k-input');
         const loadingSpinner = document.getElementById('loading-spinner');
+        const temperatureInput = document.getElementById('temperature-input');
+        const temperatureValueDisplay = document.getElementById('temperature-value');
+        const inputTokenizationDiv = document.getElementById('input-tokenization-display');
+        const modelNameDisplay = document.getElementById('model-name-display');
+        const allControls = [textInput, topKInput, temperatureInput];
 
+
+        // State
         let debounceTimer;
-        let isFetching = false;
+        let isFetchingPrediction = false;
+        let currentModelDisplayName = "{{ model_display_name }}";
         let modelReady = false;
 
+        // --- UI Update Functions ---
         function showSpinner(show) {
             loadingSpinner.style.display = show ? 'inline-block' : 'none';
         }
+        
+        function setControlsDisabled(disabled) {
+            allControls.forEach(control => control.disabled = disabled);
+        }
 
+        function updateGlobalStatus(message, type = 'info') {
+            globalStatusDiv.textContent = message;
+            globalStatusDiv.className = ''; 
+            if (type === 'error') globalStatusDiv.classList.add('error-message');
+            else if (type === 'success') globalStatusDiv.classList.add('success-message');
+            else if (type === 'loading_model') globalStatusDiv.classList.add('info-message');
+            showSpinner(type === 'loading_model' || message.toLowerCase().includes('fetching') || message.toLowerCase().includes('calculating'));
+        }
+        
+        // --- Core Logic ---
         async function checkModelStatus() {
+            updateGlobalStatus('Checking server status...', 'info');
+            setControlsDisabled(true);
             try {
-                statusDiv.textContent = 'Checking model status...';
-                showSpinner(true);
-                const response = await fetch('/status'); // Relative path for Flask
+                const response = await fetch('/status');
                 const data = await response.json();
 
-                if (response.ok && data.status === 'ready') {
-                    statusDiv.innerHTML = `Model: <strong>${data.model_name}</strong> on <strong>${data.device}</strong>. Ready.`;
+                currentModelDisplayName = data.model_name || currentModelDisplayName;
+                modelNameDisplay.textContent = currentModelDisplayName;
+
+                if (data.status === 'ready') {
+                    updateGlobalStatus(`Model ${currentModelDisplayName} on ${data.device}. Ready.`, 'success');
                     modelReady = true;
-                    updateVisualization(); // Initial visualization once model is ready
-                } else if (data.status === 'loading') {
-                    statusDiv.textContent = `Model (${data.model_name}) is loading. Please wait... Retrying in 5s.`;
-                    setTimeout(checkModelStatus, 5000);
-                } else {
-                    statusDiv.innerHTML = `<span class="error-message">Model Error: ${data.message || 'Unknown error'}</span>`;
+                    setControlsDisabled(false);
+                    updateVisualization(); 
+                } else if (data.status === 'loading_model') {
+                    updateGlobalStatus(`Model '${currentModelDisplayName}' is loading... Please wait.`, 'loading_model');
                     modelReady = false;
+                    setTimeout(checkModelStatus, 3000); 
+                } else if (data.status === 'error') {
+                    updateGlobalStatus(`Model Error: ${data.message || 'Unknown error'}`, 'error');
+                    modelReady = false;
+                    setControlsDisabled(true);
+                } else { 
+                     updateGlobalStatus(data.message || 'Server initializing...', 'info');
+                     modelReady = false;
+                     setTimeout(checkModelStatus, 3000);
                 }
             } catch (error) {
                 console.error('Error checking model status:', error);
-                statusDiv.innerHTML = `<span class="error-message">Error connecting to server. Is it running? Retrying in 5s.</span>`;
+                updateGlobalStatus(`Error connecting to server. Is it running? Retrying...`, 'error');
                 modelReady = false;
                 setTimeout(checkModelStatus, 5000);
-            } finally {
-                if (modelReady || (statusDiv.textContent && !statusDiv.textContent.includes("Retrying"))) {
-                     showSpinner(false);
-                }
             }
+        }
+        
+        function displayInputTokenization(tokens, ids) {
+            if (!tokens || tokens.length === 0) {
+                inputTokenizationDiv.innerHTML = '<em>No input text to tokenize.</em>';
+                return;
+            }
+            let html = '';
+            tokens.forEach((token, index) => {
+                const cleanToken = token.replace(/ /g, '\u00A0').replace(/\n/g, '↵').replace(/\t/g, '\u2192');
+                html += `<span class="token" title="ID: ${ids[index]}">${cleanToken}<span class="token-id">[${ids[index]}]</span></span>`;
+            });
+            inputTokenizationDiv.innerHTML = html;
         }
 
         async function updateVisualization() {
-            if (isFetching || !modelReady) {
-                if (!modelReady) statusDiv.innerHTML = `<span class="error-message">Model not ready. Cannot fetch.</span>`;
+            if (isFetchingPrediction || !modelReady) {
+                if (!modelReady && globalStatusDiv.textContent && !globalStatusDiv.textContent.toLowerCase().includes('loading')) {
+                     updateGlobalStatus('Model not ready. Cannot fetch predictions.', 'error');
+                }
                 return;
             }
 
             const text = textInput.value;
             const topK = parseInt(topKInput.value, 10) || 15;
+            const temperature = parseFloat(temperatureInput.value) || 1.0;
 
-            statusDiv.textContent = 'Fetching predictions...';
-            showSpinner(true);
-            isFetching = true;
+            updateGlobalStatus('Fetching predictions...', 'info');
+            isFetchingPrediction = true;
             entropyDisplay.textContent = 'Entropy: Calculating...';
-            Plotly.purge(chartDiv); // Clear previous plot
 
             try {
                 const startTime = performance.now();
-                const response = await fetch('/get_entropy', { // Relative path
+                const response = await fetch('/get_entropy', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: text, top_k: topK }),
+                    body: JSON.stringify({ text: text, top_k: topK, temperature: temperature }),
                 });
                 const endTime = performance.now();
                 const duration = ((endTime - startTime) / 1000).toFixed(2);
 
+                const data = await response.json();
+
                 if (!response.ok) {
-                    let errorMsg = `HTTP error! Status: ${response.status}`;
-                    try {
-                        const errorData = await response.json();
-                        errorMsg = errorData.error || (errorData.details ? `${errorData.error} (${errorData.details})` : errorMsg);
-                    } catch (e) { /* Ignore if error response is not JSON */ }
+                    let errorMsg = `HTTP ${response.status}: ${data.error || response.statusText}`;
+                    if(data.details) errorMsg += ` (${data.details})`;
                     throw new Error(errorMsg);
                 }
                 
-                const data = await response.json();
-
-                if (data.error_message) { // Handle specific error from backend prediction logic
+                if (data.error_message) {
                     throw new Error(data.error_message);
                 }
-
-
-                entropyDisplay.textContent = `Entropy: ${data.entropy.toFixed(4)}`;
                 
+                Plotly.purge(chartDiv);
+                entropyDisplay.textContent = `Entropy: ${data.entropy.toFixed(4)}`;
+                displayInputTokenization(data.input_tokens_display, data.input_token_ids_display);
+                
+                const originalTokensForClick = data.top_k_tokens; 
+
                 const plotData = [{
-                    x: data.top_k_tokens.map(token => token.replace(/ /g, '\u00A0').replace(/\n/g, '↵\n').replace(/\t/g, '\u2192\t')), // \u00A0 is non-breaking space, ↵ for newline
+                    x: data.top_k_tokens.map(token => token.replace(/ /g, '\u00A0').replace(/\n/g, '↵').replace(/\t/g, '\u2192\t')),
                     y: data.top_k_probabilities,
                     type: 'bar',
                     text: data.top_k_probabilities.map(p => (p * 100).toFixed(2) + '%'),
+                    customdata: originalTokensForClick,
                     textposition: 'auto',
                     hoverinfo: 'x+text',
-                    marker: {
-                        color: data.top_k_probabilities,
-                        colorscale: 'Viridis', // Or 'Blues', 'Greens', etc.
-                        showscale: false // Hides the color scale bar
-                    }
+                    marker: { color: data.top_k_probabilities, colorscale: 'Viridis', showscale: false }
                 }];
                 
                 const layout = {
-                    title: `Top ${data.top_k_tokens.length} Next Token Probabilities`,
-                    xaxis: { 
-                        title: 'Token', 
-                        tickangle: -45, 
-                        type: 'category', 
-                        automargin: true,
-                        tickfont: { family: 'monospace', size: 10 } 
-                    },
-                    yaxis: { 
-                        title: 'Probability', 
-                        range: [0, Math.max(0.01, ...data.top_k_probabilities) * 1.15], // Ensure y-axis starts at 0 and gives some headroom
-                        automargin: true 
-                    },
-                    margin: { l: 60, r: 20, b: 120, t: 50, pad: 4 } // Adjust margins as needed
+                    title: `Top ${data.top_k_tokens.length} Next Token Probabilities (Temp: ${data.applied_temperature.toFixed(2)})`,
+                    xaxis: { title: 'Token', tickangle: -45, type: 'category', automargin: true, tickfont: { family: 'monospace', size: 10 } },
+                    yaxis: { title: 'Probability', range: [0, Math.max(0.001, ...data.top_k_probabilities) * 1.15], automargin: true },
+                    margin: { l: 60, r: 20, b: 120, t: 60, pad: 4 }
                 };
                 
                 Plotly.newPlot(chartDiv, plotData, layout, { responsive: true });
-                statusDiv.textContent = `Ready. (Fetch time: ${duration}s)`;
+
+                // Moved plotly_click listener setup here, after Plotly.newPlot
+                chartDiv.on('plotly_click', function(eventData){
+                    if(eventData.points && eventData.points.length > 0){
+                        const clickedToken = eventData.points[0].customdata;
+                        let currentText = textInput.value;
+                        
+                        if (clickedToken.startsWith(' ') || currentText.endsWith(' ') || currentText.length === 0 || clickedToken === '\n') {
+                            textInput.value += clickedToken;
+                        } else {
+                            textInput.value += ' ' + clickedToken;
+                        }
+                        textInput.focus();
+                        // Debounce this call or it might lead to rapid firing if updateVisualization is too fast
+                        clearTimeout(debounceTimer); // Clear any pending text input debounce
+                        updateVisualization(); // Re-trigger visualization
+                    }
+                });
+
+                updateGlobalStatus(`Ready. (Fetch time: ${duration}s)`, 'success');
 
             } catch (error) {
                 console.error('Error fetching or plotting entropy:', error);
+                Plotly.purge(chartDiv);
                 entropyDisplay.textContent = 'Entropy: Error';
-                statusDiv.innerHTML = `<span class="error-message">Error: ${error.message}</span>`;
-                Plotly.purge(chartDiv); // Clear chart on error
+                if (globalStatusDiv) { // Check if globalStatusDiv is available before updating
+                    updateGlobalStatus(`Error: ${error.message}`, 'error');
+                }
+                displayInputTokenization([], []);
             } finally {
-                isFetching = false;
-                showSpinner(false);
+                isFetchingPrediction = false;
             }
         }
 
-        function handleInput() {
+        function handleTextInput() {
             if (!modelReady) return;
             clearTimeout(debounceTimer);
-            statusDiv.textContent = 'Waiting for input...';
-            showSpinner(false); // Hide spinner while typing
-            debounceTimer = setTimeout(updateVisualization, 500); // Debounce API calls
+            if (globalStatusDiv) { // Check if globalStatusDiv is available
+                 updateGlobalStatus('Waiting for input...', 'info');
+            }
+            const currentText = textInput.value;
+            if (!currentText) {
+                 displayInputTokenization([],[]);
+            } else {
+                if (inputTokenizationDiv) inputTokenizationDiv.innerHTML = '<em>Tokenizing...</em>';
+            }
+            debounceTimer = setTimeout(updateVisualization, 600);
+        }
+        
+        function handleParamChange() {
+            if (modelReady) {
+                clearTimeout(debounceTimer);
+                if (temperatureValueDisplay) {
+                    temperatureValueDisplay.textContent = parseFloat(temperatureInput.value).toFixed(2);
+                }
+                debounceTimer = setTimeout(updateVisualization, 300);
+            }
         }
 
-        textInput.addEventListener('input', handleInput);
-        topKInput.addEventListener('change', () => {
-            if (modelReady) updateVisualization(); // Re-fetch when Top K changes
-        });
-        topKInput.addEventListener('input', () => { // Optional: instant update on input for slider-like feel, but can be noisy
-             if (!modelReady) return;
-             clearTimeout(debounceTimer);
-             debounceTimer = setTimeout(updateVisualization, 700);
+        // --- Event Listeners ---
+        textInput.addEventListener('input', handleTextInput);
+        topKInput.addEventListener('change', handleParamChange);
+        topKInput.addEventListener('input', () => { 
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(handleParamChange, 700);
         });
 
+        temperatureInput.addEventListener('input', () => { 
+            if (temperatureValueDisplay) {
+                 temperatureValueDisplay.textContent = parseFloat(temperatureInput.value).toFixed(2);
+            }
+        });
+        temperatureInput.addEventListener('change', handleParamChange);
 
-        // Initial actions
-        checkModelStatus(); // Start by checking model status
+        // The plotly_click listener is now set inside updateVisualization
+
+        // --- Initializations ---
+        if (temperatureValueDisplay && temperatureInput) {
+            temperatureValueDisplay.textContent = parseFloat(temperatureInput.value).toFixed(2);
+        }
+        if (modelNameDisplay) {
+            modelNameDisplay.textContent = currentModelDisplayName;
+        }
+        checkModelStatus(); 
 
     </script>
 </body>
