@@ -2,6 +2,8 @@
 
 A simple web application to visualize the Shannon entropy of the next token prediction from an LLM (e.g., GPT-2) as you type. Also shows the probability distribution of the top predicted tokens.
 
+![Image of the visualization](./images/llm-entropy.png)
+
 Built with Python, Flask, Hugging Face Transformers, and Plotly.js.
 
 ## Setup
