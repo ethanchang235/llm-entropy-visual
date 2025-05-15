@@ -5,37 +5,45 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LLM Entropy Visualizer</title>
-    <!-- Updated Plotly CDN link to a specific recent version (example, check for latest) -->
-    <script src='https://cdn.plot.ly/plotly-2.29.1.min.js'></script> 
+    <script src='https://cdn.plot.ly/plotly-2.29.1.min.js'></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol"; display: flex; flex-direction: column; align-items: center; margin-top: 15px; background-color: #f8f9fa; color: #212529; font-size: 15px;}
         h1 { color: #343a40; text-align: center; margin-bottom: 5px; font-size: 1.8em;}
-        #model-info-header { text-align: center; color: #495057; margin-bottom: 15px; font-size: 1.1em; }
+        #model-info-header { text-align: center; color: #495057; margin-bottom: 10px; font-size: 1.1em; }
         #app-container { display: flex; flex-direction: column; width: 96%; max-width: 1300px; gap: 20px; }
         
         .panel { background-color: #ffffff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.08); }
 
-        #config-panel { display: flex; flex-wrap: wrap; gap: 20px; align-items: center; justify-content: flex-start; }
+        #config-panel { display: flex; flex-wrap: wrap; gap: 20px; align-items: center; justify-content: space-between; /* Adjusted for new buttons */ }
         .config-item { display: flex; flex-direction: column; gap: 5px; }
         .config-item label { font-size: 0.9em; color: #495057; }
         .config-item input[type="number"], .config-item input[type="range"] {
-            padding: 8px 10px; font-size: 0.95em; border: 1px solid #ced4da; border-radius: 4px; min-width: 120px;
+            padding: 8px 10px; font-size: 0.95em; border: 1px solid #ced4da; border-radius: 4px; min-width: 100px; /* Slightly reduced min-width */
         }
         #temperature-value { font-weight: bold; color: #007bff; }
+        .action-buttons button { padding: 8px 12px; font-size: 0.9em; border: 1px solid #6c757d; border-radius: 4px; background-color: #6c757d; color: white; cursor: pointer; transition: background-color 0.2s; }
+        .action-buttons button:hover { background-color: #5a6268; }
+        .action-buttons button:disabled { background-color: #adb5bd; cursor: not-allowed;}
+        .action-buttons { display: flex; gap: 10px; align-items: center;} /* Container for action buttons */
+
 
         #main-content { display: flex; flex-direction: column; gap: 20px; }
-        @media (min-width: 992px) { /* Larger screens */
+        @media (min-width: 992px) {
             #main-content { flex-direction: row; }
             #input-analysis-section { flex: 2; }
             #output-section { flex: 3; }
         }
 
         #input-analysis-section { display: flex; flex-direction: column; gap: 15px; }
+        .input-label-container { display: flex; justify-content: space-between; align-items: center; }
+        .input-label-container button { font-size: 0.85em; padding: 4px 8px; } /* Smaller clear button */
         textarea { width: 100%; min-height: 150px; font-size: 1.05em; padding: 12px; box-sizing: border-box; border: 1px solid #ced4da; border-radius: 4px; resize: vertical; }
         
         #status-bar { display: flex; justify-content: space-between; align-items: center; gap: 15px; margin-top: 10px; padding: 8px 0; flex-wrap: wrap;}
+        #entropy-info { display: flex; flex-direction: column; gap: 3px; }
         #entropy-display { font-size: 1.3em; font-weight: bold; color: #007bff; white-space: nowrap; }
-        #global-status-container { display: flex; align-items: center; gap: 8px; font-style: italic; color: #6c757d; flex-grow: 1; }
+        #cumulative-prob-display { font-size: 0.9em; color: #495057; }
+        #global-status-container { display: flex; align-items: center; gap: 8px; font-style: italic; color: #6c757d; flex-grow: 1; justify-content: flex-end;}
         .spinner { border: 3px solid #f3f3f3; border-top: 3px solid #3498db; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; display: none; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
@@ -49,37 +57,55 @@
         .error-message { color: #dc3545; font-weight: bold; }
         .info-message { color: #17a2b8; }
         .success-message { color: #28a745; }
+        button:disabled, input:disabled { cursor: not-allowed; opacity: 0.7; }
 
-        button:disabled, select:disabled, input:disabled { cursor: not-allowed; opacity: 0.7; }
+        /* Help Modal Styles */
+        #help-modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4); padding-top: 60px;}
+        .help-modal-content { background-color: #fefefe; margin: 5% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 700px; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        .help-modal-content h2 { margin-top: 0;}
+        .help-modal-content ul { padding-left: 20px; }
+        .close-help-button { color: #aaa; float: right; font-size: 28px; font-weight: bold; }
+        .close-help-button:hover, .close-help-button:focus { color: black; text-decoration: none; cursor: pointer; }
     </style>
 </head>
 <body>
     <h1>LLM Entropy & Token Visualizer</h1>
     <div id="model-info-header">Model: <strong id="model-name-display">{{ model_display_name }}</strong></div>
 
-
     <div id="app-container">
         <div id="config-panel" class="panel">
-            <div class="config-item">
-                <label for="top-k-input">Top K Tokens (1-50):</label>
-                <input type="number" id="top-k-input" value="15" min="1" max="50">
+            <div style="display: flex; gap: 20px; flex-wrap: wrap;"> <!-- Group for left-aligned controls -->
+                <div class="config-item">
+                    <label for="top-k-input">Top K Tokens (1-50):</label>
+                    <input type="number" id="top-k-input" value="15" min="1" max="50">
+                </div>
+                <div class="config-item">
+                    <label for="temperature-input">Temperature (<span id="temperature-value">1.00</span>):</label>
+                    <input type="range" id="temperature-input" min="0.01" max="2.0" step="0.01" value="1.0">
+                </div>
             </div>
-            <div class="config-item">
-                <label for="temperature-input">Temperature (<span id="temperature-value">1.00</span>):</label>
-                <input type="range" id="temperature-input" min="0.01" max="2.0" step="0.01" value="1.0">
+            <div class="action-buttons">
+                <button id="surprise-me-button" title="Fill input with a random phrase">🎲 Surprise Me</button>
+                <button id="help-button" title="Show help information">❓ Help</button>
             </div>
         </div>
 
         <div id="main-content">
             <div id="input-analysis-section" class="panel">
-                <label for="text-input">Enter text (or leave empty to predict first token):</label>
+                <div class="input-label-container">
+                    <label for="text-input">Enter text (or leave empty to predict first token):</label>
+                    <button id="clear-text-button" title="Clear input text">Clear</button>
+                </div>
                 <textarea id="text-input" placeholder="Type here..."></textarea>
                 <div id="input-tokenization-container">
                     <label>Input Tokenization:</label>
                     <div id="input-tokenization-display">No input text.</div>
                 </div>
                  <div id="status-bar">
-                    <div id="entropy-display">Entropy: -</div>
+                    <div id="entropy-info">
+                        <div id="entropy-display">Entropy: -</div>
+                        <div id="cumulative-prob-display">Top K Cum. Prob: -</div>
+                    </div>
                     <div id="global-status-container">
                         <div class="spinner" id="loading-spinner"></div>
                         <div id="global-status">Initializing...</div>
@@ -93,10 +119,43 @@
         </div>
     </div>
 
+    <!-- Help Modal Structure -->
+    <div id="help-modal">
+        <div class="help-modal-content">
+            <span class="close-help-button" id="close-help-modal-button">×</span>
+            <h2>LLM Entropy Visualizer - Help</h2>
+            <p>This tool visualizes the next token predictions of a Language Model (LLM) and calculates the Shannon entropy of its probability distribution.</p>
+            <h4>Features:</h4>
+            <ul>
+                <li><strong>Text Input:</strong> Type any text to see what the LLM predicts will come next. Leave it empty to see predictions for the very first token of a sequence.</li>
+                <li><strong>Top K Tokens:</strong> Adjust how many of the most probable next tokens are displayed in the bar chart.</li>
+                <li><strong>Temperature:</strong> Controls the randomness of the predictions.
+                    <ul>
+                        <li>Lower temperatures (e.g., < 1.0) make the distribution "peakier" and predictions more deterministic/less surprising.</li>
+                        <li>Higher temperatures (e.g., > 1.0) make the distribution "flatter" and predictions more random/diverse/surprising.</li>
+                    </ul>
+                </li>
+                <li><strong>Entropy:</strong> A measure of uncertainty or "surprise" in the LLM's prediction for the next token.
+                    <ul>
+                        <li>Low entropy means the model is very confident about a few specific next tokens.</li>
+                        <li>High entropy means the model is less certain, and many tokens are somewhat equally probable.</li>
+                    </ul>
+                </li>
+                <li><strong>Top K Cumulative Probability:</strong> The sum of probabilities of the displayed Top K tokens. Indicates how much of the model's confidence is captured by these top choices.</li>
+                <li><strong>Input Tokenization:</strong> Shows how your input text is broken down into tokens by the model's tokenizer. Each token has an ID.</li>
+                <li><strong>Probability Chart:</strong> Visualizes the probabilities of the top K next tokens. You can click on a bar to append that token to your input text.</li>
+                <li><strong>Surprise Me:</strong> Fills the input with a random phrase.</li>
+                <li><strong>Clear Button:</strong> Clears the text input area.</li>
+            </ul>
+            <p><em>Model Used: GPT-2 (Small)</em></p>
+        </div>
+    </div>
+
     <script>
         // DOM Elements
         const textInput = document.getElementById('text-input');
         const entropyDisplay = document.getElementById('entropy-display');
+        const cumulativeProbDisplay = document.getElementById('cumulative-prob-display');
         const chartDiv = document.getElementById('probability-chart');
         const globalStatusDiv = document.getElementById('global-status');
         const topKInput = document.getElementById('top-k-input');
@@ -105,7 +164,14 @@
         const temperatureValueDisplay = document.getElementById('temperature-value');
         const inputTokenizationDiv = document.getElementById('input-tokenization-display');
         const modelNameDisplay = document.getElementById('model-name-display');
-        const allControls = [textInput, topKInput, temperatureInput];
+        
+        const surpriseMeButton = document.getElementById('surprise-me-button');
+        const clearTextButton = document.getElementById('clear-text-button');
+        const helpButton = document.getElementById('help-button');
+        const helpModal = document.getElementById('help-modal');
+        const closeHelpModalButton = document.getElementById('close-help-modal-button');
+
+        const allControls = [textInput, topKInput, temperatureInput, surpriseMeButton, clearTextButton, helpButton];
 
 
         // State
@@ -113,6 +179,12 @@
         let isFetchingPrediction = false;
         let currentModelDisplayName = "{{ model_display_name }}";
         let modelReady = false;
+
+        const surprisePhrases = [
+            "Hello world", "The quick brown fox", "Artificial intelligence is", "Once upon a time",
+            "To be or not to be", "The meaning of life is", "Tell me a story about", "What is the weather like",
+            "In a galaxy far, far away", "The cat sat on the"
+        ];
 
         // --- UI Update Functions ---
         function showSpinner(show) {
@@ -124,12 +196,14 @@
         }
 
         function updateGlobalStatus(message, type = 'info') {
-            globalStatusDiv.textContent = message;
-            globalStatusDiv.className = ''; 
-            if (type === 'error') globalStatusDiv.classList.add('error-message');
-            else if (type === 'success') globalStatusDiv.classList.add('success-message');
-            else if (type === 'loading_model') globalStatusDiv.classList.add('info-message');
-            showSpinner(type === 'loading_model' || message.toLowerCase().includes('fetching') || message.toLowerCase().includes('calculating'));
+            if (globalStatusDiv) {
+                globalStatusDiv.textContent = message;
+                globalStatusDiv.className = ''; 
+                if (type === 'error') globalStatusDiv.classList.add('error-message');
+                else if (type === 'success') globalStatusDiv.classList.add('success-message');
+                else if (type === 'loading_model') globalStatusDiv.classList.add('info-message');
+                showSpinner(type === 'loading_model' || message.toLowerCase().includes('fetching') || message.toLowerCase().includes('calculating'));
+            }
         }
         
         // --- Core Logic ---
@@ -141,7 +215,7 @@
                 const data = await response.json();
 
                 currentModelDisplayName = data.model_name || currentModelDisplayName;
-                modelNameDisplay.textContent = currentModelDisplayName;
+                if(modelNameDisplay) modelNameDisplay.textContent = currentModelDisplayName;
 
                 if (data.status === 'ready') {
                     updateGlobalStatus(`Model ${currentModelDisplayName} on ${data.device}. Ready.`, 'success');
@@ -155,7 +229,7 @@
                 } else if (data.status === 'error') {
                     updateGlobalStatus(`Model Error: ${data.message || 'Unknown error'}`, 'error');
                     modelReady = false;
-                    setControlsDisabled(true);
+                    setControlsDisabled(true); // Keep controls disabled on critical model error
                 } else { 
                      updateGlobalStatus(data.message || 'Server initializing...', 'info');
                      modelReady = false;
@@ -170,8 +244,9 @@
         }
         
         function displayInputTokenization(tokens, ids) {
+            if (!inputTokenizationDiv) return;
             if (!tokens || tokens.length === 0) {
-                inputTokenizationDiv.innerHTML = '<em>No input text to tokenize.</em>';
+                inputTokenizationDiv.innerHTML = '<em>No input text.</em>';
                 return;
             }
             let html = '';
@@ -182,10 +257,10 @@
             inputTokenizationDiv.innerHTML = html;
         }
 
-        async function updateVisualization() {
+        async function updateVisualization(isUserInput = true) {
             if (isFetchingPrediction || !modelReady) {
-                if (!modelReady && globalStatusDiv.textContent && !globalStatusDiv.textContent.toLowerCase().includes('loading')) {
-                     updateGlobalStatus('Model not ready. Cannot fetch predictions.', 'error');
+                if (!modelReady && globalStatusDiv && globalStatusDiv.textContent && !globalStatusDiv.textContent.toLowerCase().includes('loading')) {
+                     updateGlobalStatus('Model not ready. Cannot fetch.', 'error');
                 }
                 return;
             }
@@ -194,9 +269,13 @@
             const topK = parseInt(topKInput.value, 10) || 15;
             const temperature = parseFloat(temperatureInput.value) || 1.0;
 
-            updateGlobalStatus('Fetching predictions...', 'info');
+            if (isUserInput) { // Only show "fetching" for direct user actions, not programmatic updates
+                updateGlobalStatus('Fetching predictions...', 'info');
+            }
             isFetchingPrediction = true;
-            entropyDisplay.textContent = 'Entropy: Calculating...';
+            if(entropyDisplay) entropyDisplay.textContent = 'Entropy: Calculating...';
+            if(cumulativeProbDisplay) cumulativeProbDisplay.textContent = 'Top K Cum. Prob: -';
+
 
             try {
                 const startTime = performance.now();
@@ -221,7 +300,12 @@
                 }
                 
                 Plotly.purge(chartDiv);
-                entropyDisplay.textContent = `Entropy: ${data.entropy.toFixed(4)}`;
+                if(entropyDisplay) entropyDisplay.textContent = `Entropy: ${data.entropy.toFixed(4)}`;
+                
+                // Calculate and display cumulative probability
+                const sumTopKProb = data.top_k_probabilities.reduce((sum, p) => sum + p, 0);
+                if(cumulativeProbDisplay) cumulativeProbDisplay.textContent = `Top K Cum. Prob: ${(sumTopKProb * 100).toFixed(2)}%`;
+                
                 displayInputTokenization(data.input_tokens_display, data.input_token_ids_display);
                 
                 const originalTokensForClick = data.top_k_tokens; 
@@ -246,7 +330,6 @@
                 
                 Plotly.newPlot(chartDiv, plotData, layout, { responsive: true });
 
-                // Moved plotly_click listener setup here, after Plotly.newPlot
                 chartDiv.on('plotly_click', function(eventData){
                     if(eventData.points && eventData.points.length > 0){
                         const clickedToken = eventData.points[0].customdata;
@@ -258,21 +341,17 @@
                             textInput.value += ' ' + clickedToken;
                         }
                         textInput.focus();
-                        // Debounce this call or it might lead to rapid firing if updateVisualization is too fast
-                        clearTimeout(debounceTimer); // Clear any pending text input debounce
-                        updateVisualization(); // Re-trigger visualization
+                        clearTimeout(debounceTimer);
+                        updateVisualization(false); // Pass false as it's not direct user typing
                     }
                 });
-
                 updateGlobalStatus(`Ready. (Fetch time: ${duration}s)`, 'success');
-
             } catch (error) {
                 console.error('Error fetching or plotting entropy:', error);
                 Plotly.purge(chartDiv);
-                entropyDisplay.textContent = 'Entropy: Error';
-                if (globalStatusDiv) { // Check if globalStatusDiv is available before updating
-                    updateGlobalStatus(`Error: ${error.message}`, 'error');
-                }
+                if(entropyDisplay) entropyDisplay.textContent = 'Entropy: Error';
+                if(cumulativeProbDisplay) cumulativeProbDisplay.textContent = 'Top K Cum. Prob: Error';
+                updateGlobalStatus(`Error: ${error.message}`, 'error');
                 displayInputTokenization([], []);
             } finally {
                 isFetchingPrediction = false;
@@ -282,16 +361,14 @@
         function handleTextInput() {
             if (!modelReady) return;
             clearTimeout(debounceTimer);
-            if (globalStatusDiv) { // Check if globalStatusDiv is available
-                 updateGlobalStatus('Waiting for input...', 'info');
-            }
+            updateGlobalStatus('Waiting for input...', 'info');
             const currentText = textInput.value;
             if (!currentText) {
                  displayInputTokenization([],[]);
             } else {
                 if (inputTokenizationDiv) inputTokenizationDiv.innerHTML = '<em>Tokenizing...</em>';
             }
-            debounceTimer = setTimeout(updateVisualization, 600);
+            debounceTimer = setTimeout(() => updateVisualization(true), 600);
         }
         
         function handleParamChange() {
@@ -300,16 +377,50 @@
                 if (temperatureValueDisplay) {
                     temperatureValueDisplay.textContent = parseFloat(temperatureInput.value).toFixed(2);
                 }
-                debounceTimer = setTimeout(updateVisualization, 300);
+                debounceTimer = setTimeout(() => updateVisualization(true), 300);
             }
         }
 
-        // --- Event Listeners ---
+        // --- New Feature Event Handlers ---
+        surpriseMeButton.addEventListener('click', () => {
+            if (!modelReady) return;
+            const randomIndex = Math.floor(Math.random() * surprisePhrases.length);
+            textInput.value = surprisePhrases[randomIndex];
+            clearTimeout(debounceTimer); // Clear any pending debounce from typing
+            updateVisualization(true); // Trigger update immediately
+            textInput.focus();
+        });
+
+        clearTextButton.addEventListener('click', () => {
+            textInput.value = '';
+            clearTimeout(debounceTimer);
+            updateVisualization(true); // Update to show predictions for empty input
+            textInput.focus();
+            displayInputTokenization([],[]); // Explicitly clear tokenization display
+        });
+
+        helpButton.addEventListener('click', () => {
+            if(helpModal) helpModal.style.display = "block";
+        });
+
+        closeHelpModalButton.addEventListener('click', () => {
+            if(helpModal) helpModal.style.display = "none";
+        });
+
+        // Close modal if user clicks outside of it
+        window.onclick = function(event) {
+            if (event.target == helpModal) {
+                helpModal.style.display = "none";
+            }
+        }
+
+
+        // --- Event Listeners (Existing) ---
         textInput.addEventListener('input', handleTextInput);
         topKInput.addEventListener('change', handleParamChange);
         topKInput.addEventListener('input', () => { 
             clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(handleParamChange, 700);
+            debounceTimer = setTimeout(() => handleParamChange(true), 700);
         });
 
         temperatureInput.addEventListener('input', () => { 
@@ -319,7 +430,6 @@
         });
         temperatureInput.addEventListener('change', handleParamChange);
 
-        // The plotly_click listener is now set inside updateVisualization
 
         // --- Initializations ---
         if (temperatureValueDisplay && temperatureInput) {
