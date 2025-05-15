@@ -2,7 +2,7 @@
 
 App to visualize the entropy of the next token prediction from GPT-2 (124M) as you type. Also shows the probability distribution of the top predicted tokens.
 
-![Image of the visualization](./images/randomize.png)
+![Image of the visualization](./images/input-history.png)
 
 Built with Python, Flask, Hugging Face Transformers, and Plotly.js.
 
