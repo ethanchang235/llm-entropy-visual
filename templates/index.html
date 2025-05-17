@@ -15,31 +15,33 @@
         .panel { background-color: #ffffff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.08); }
 
         #config-panel { display: flex; flex-wrap: wrap; gap: 20px; align-items: center; justify-content: space-between; }
+        .config-group { display: flex; flex-wrap: wrap; gap: 20px; align-items: center; } 
         .config-item { display: flex; flex-direction: column; gap: 5px; }
-        .config-item label { font-size: 0.9em; color: #495057; }
+        .config-item label, .config-item .checkbox-label { font-size: 0.9em; color: #495057; }
         .config-item input[type="number"], .config-item input[type="range"] {
             padding: 8px 10px; font-size: 0.95em; border: 1px solid #ced4da; border-radius: 4px; min-width: 100px;
         }
+        .config-item input[type="checkbox"] { margin-right: 5px; vertical-align: middle; } /* Style for checkbox */
         #temperature-value { font-weight: bold; color: #007bff; }
         .action-buttons button { padding: 8px 12px; font-size: 0.9em; border: 1px solid #6c757d; border-radius: 4px; background-color: #6c757d; color: white; cursor: pointer; transition: background-color 0.2s; }
         .action-buttons button:hover { background-color: #5a6268; }
         .action-buttons button:disabled { background-color: #adb5bd; cursor: not-allowed;}
         .action-buttons { display: flex; gap: 10px; align-items: center;}
 
-        #main-content-wrapper { display: flex; flex-direction: column; gap: 20px; } /* Renamed for clarity */
-        #main-content { display: flex; flex-direction: column; gap: 20px; flex-grow: 1;} /* To hold input and output */
+        #main-content-wrapper { display: flex; flex-direction: column; gap: 20px; } 
+        #main-content { display: flex; flex-direction: column; gap: 20px; flex-grow: 1;} 
         #side-panel { flex-shrink: 0; display: flex; flex-direction: column; gap: 20px; } 
         
         @media (min-width: 992px) {
-            #main-content-wrapper { flex-direction: row; } /* Side by side on larger screens */
+            #main-content-wrapper { flex-direction: row; } 
+            #main-content { flex-grow: 1; display: flex; flex-direction: column;} 
             #input-analysis-section { flex: 2; } 
             #output-section { flex: 3; } 
-            #side-panel { width: 300px; max-width: 300px; /* Fixed width for side panel */ }
+            #side-panel { width: 300px; max-width: 300px; }
         }
         @media (max-width: 991px) { 
             #side-panel { order: 3; } 
         }
-
 
         #input-analysis-section { display: flex; flex-direction: column; gap: 15px; }
         .input-label-container { display: flex; justify-content: space-between; align-items: center; }
@@ -59,9 +61,10 @@
         #input-tokenization-display .token .token-id { font-size: 0.8em; color: #888; margin-left: 3px;}
 
         #output-section { display: flex; flex-direction: column; }
+        .chart-controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap:10px;}
+        .chart-controls .config-item {flex-direction: row; align-items: center; gap: 5px;} /* For log scale toggle */
         #probability-chart { width: 100%; min-height: 400px; }
         
-        /* New History and Entropy Trend Styles */
         .side-panel-section h4 { margin-top: 0; margin-bottom: 10px; font-size: 1.05em; color: #343a40; }
         #input-history-list { list-style: none; padding: 0; margin: 0; max-height: 150px; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: 4px;}
         #input-history-list li { padding: 6px 10px; font-size: 0.85em; cursor: pointer; border-bottom: 1px solid #eee; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -69,7 +72,6 @@
         #input-history-list li:hover { background-color: #f0f0f0; }
         #input-history-list li .history-entropy { float: right; color: #007bff; font-weight: bold; margin-left: 10px;}
         #entropy-trend-chart { width: 100%; min-height: 200px; }
-
 
         .error-message { color: #dc3545; font-weight: bold; }
         .info-message { color: #17a2b8; }
@@ -82,6 +84,8 @@
         .help-modal-content ul { padding-left: 20px; }
         .close-help-button { color: #aaa; float: right; font-size: 28px; font-weight: bold; }
         .close-help-button:hover, .close-help-button:focus { color: black; text-decoration: none; cursor: pointer; }
+        .copy-feedback { font-size: 0.8em; color: green; margin-left: 5px; opacity: 0; transition: opacity 0.5s;}
+        .copy-feedback.show { opacity: 1; }
     </style>
 </head>
 <body>
@@ -90,7 +94,7 @@
 
     <div id="app-container">
         <div id="config-panel" class="panel">
-            <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+            <div class="config-group">
                 <div class="config-item">
                     <label for="top-k-input">Top K Tokens (1-50):</label>
                     <input type="number" id="top-k-input" value="15" min="1" max="50">
@@ -131,10 +135,16 @@
                 </div>
 
                 <div id="output-section" class="panel">
+                    <div class="chart-controls">
+                        <div class="config-item"> <!-- Changed from div to make it an actual config item -->
+                            <input type="checkbox" id="log-scale-checkbox">
+                            <label for="log-scale-checkbox" class="checkbox-label">Use Log Scale for Probabilities</label>
+                        </div>
+                        <button id="copy-topk-button" class="action-buttons" title="Copy Top K tokens and probabilities">📋 Copy Top K <span id="copy-feedback" class="copy-feedback">Copied!</span></button>
+                    </div>
                     <div id="probability-chart"></div>
                 </div>
             </div>
-
 
             <div id="side-panel">
                 <div class="panel side-panel-section">
@@ -179,6 +189,8 @@
                 <li><strong>Clear Button:</strong> Clears the text input area.</li>
                 <li><strong>Input History:</strong> Shows your recent inputs and their entropy. Click to reload an input.</li>
                 <li><strong>Entropy Trend:</strong> Plots entropy against the length of your input sequence (character count).</li>
+                <li><strong>Log Scale for Probabilities:</strong> Toggle to view the y-axis of the probability chart on a logarithmic scale. This helps visualize small probabilities more clearly.</li>
+                <li><strong>Copy Top K:</strong> Copies the current Top K tokens and their probabilities to your clipboard.</li>
             </ul>
             <p><em>Model Used: GPT-2 (Small)</em></p>
         </div>
@@ -208,14 +220,20 @@
         const entropyTrendChartDiv = document.getElementById('entropy-trend-chart');
         const maxHistoryCountDisplay = document.getElementById('max-history-count');
 
+        // New DOM Elements for added features
+        const logScaleCheckbox = document.getElementById('log-scale-checkbox');
+        const copyTopKButton = document.getElementById('copy-topk-button');
+        const copyFeedbackSpan = document.getElementById('copy-feedback');
 
-        const allControls = [textInput, topKInput, temperatureInput, surpriseMeButton, clearTextButton, helpButton];
+        const allControls = [textInput, topKInput, temperatureInput, surpriseMeButton, clearTextButton, helpButton, logScaleCheckbox, copyTopKButton];
 
         // State
         let debounceTimer;
         let isFetchingPrediction = false;
         let currentModelDisplayName = "{{ model_display_name }}";
         let modelReady = false;
+        let currentTopKData = null; // To store the latest top_k data for copying
+
 
         const surprisePhrases = [
             "Hello world", "The quick brown fox", "Artificial intelligence is", "Once upon a time",
@@ -231,11 +249,7 @@
 
         // --- UI Update Functions ---
         function showSpinner(show) { if(loadingSpinner) loadingSpinner.style.display = show ? 'inline-block' : 'none'; }
-        
-        function setControlsDisabled(disabled) { 
-            allControls.forEach(control => { if(control) control.disabled = disabled; }); 
-        }
-
+        function setControlsDisabled(disabled) { allControls.forEach(control => { if(control) control.disabled = disabled; }); }
         function updateGlobalStatus(message, type = 'info') {
             if (globalStatusDiv) {
                 globalStatusDiv.textContent = message;
@@ -247,7 +261,6 @@
             }
         }
         
-        // --- New History and Trend Update Functions ---
         function updateInputHistoryDisplay() {
             if (!inputHistoryList) return;
             inputHistoryList.innerHTML = '';
@@ -255,20 +268,16 @@
                 inputHistoryList.innerHTML = '<li><em>No history yet.</em></li>';
                 return;
             }
-            inputHistory.forEach((item) => { // No index needed here
+            inputHistory.forEach((item) => {
                 const li = document.createElement('li');
                 const textPreview = item.text.length > 30 ? item.text.substring(0, 27) + '...' : (item.text || "Empty Input");
                 li.innerHTML = `${textPreview} <span class="history-entropy">${item.entropy.toFixed(3)}</span>`;
                 li.title = `Input: "${item.text}"\nEntropy: ${item.entropy.toFixed(4)}`;
                 li.addEventListener('click', () => {
                     textInput.value = item.text;
-                    // If restoring an empty input that had a trend, reset trend.
-                    // Otherwise, the trend should reflect the state *leading up to* this historical point.
-                    // For simplicity here, we'll just update. A more complex state restoration for trend might be needed.
                     if (item.text.trim() === "" && entropyTrendData.x.length > 0 && entropyTrendData.x[entropyTrendData.x.length -1] !== 0) {
-                         resetEntropyTrend(); // Reset if restoring to empty and trend wasn't already at 0
+                         resetEntropyTrend(); 
                     }
-
                     clearTimeout(debounceTimer);
                     updateVisualization(true); 
                 });
@@ -278,7 +287,7 @@
 
         function addInputToHistory(text, entropy) {
             if (inputHistory.length > 0 && inputHistory[0].text === text && inputHistory[0].entropy.toFixed(4) === entropy.toFixed(4)) {
-                 return; // Avoid adding exact duplicate consecutive entries
+                 return; 
             }
             inputHistory.unshift({ text, entropy }); 
             if (inputHistory.length > MAX_HISTORY_ITEMS) {
@@ -296,18 +305,14 @@
             const trace = {
                 x: entropyTrendData.x,
                 y: entropyTrendData.y,
-                mode: 'lines+markers',
-                type: 'scatter',
-                name: 'Entropy',
-                marker: { color: '#007bff', size: 6 },
-                line: { color: '#007bff', width: 2 }
+                mode: 'lines+markers', type: 'scatter', name: 'Entropy',
+                marker: { color: '#007bff', size: 6 }, line: { color: '#007bff', width: 2 }
             };
             const layout = {
                 xaxis: { title: 'Input Length (chars)', automargin: true, type: 'linear' },
                 yaxis: { title: 'Entropy', automargin: true, rangemode: 'tozero' },
-                margin: { l: 50, r: 20, b: 50, t: 30, pad: 4 }, // Increased bottom margin for x-axis title
-                showlegend: false,
-                hovermode: 'closest'
+                margin: { l: 50, r: 20, b: 50, t: 30, pad: 4 }, 
+                showlegend: false, hovermode: 'closest'
             };
             Plotly.newPlot(entropyTrendChartDiv, [trace], layout, { responsive: true });
         }
@@ -316,19 +321,12 @@
             const lastX = entropyTrendData.x.length > 0 ? entropyTrendData.x[entropyTrendData.x.length - 1] : -1;
             const lastY = entropyTrendData.y.length > 0 ? entropyTrendData.y[entropyTrendData.y.length - 1] : -1;
 
-            if (lastX === length && lastY.toFixed(4) === entropy.toFixed(4)) {
-                return; // Identical point, do nothing
-            } else if (lastX === length) { // Same length, different entropy (e.g., temp change)
-                entropyTrendData.y[entropyTrendData.y.length - 1] = entropy;
-            } else { // New length or first point
-                entropyTrendData.x.push(length);
-                entropyTrendData.y.push(entropy);
-            }
-            // Optional: Limit trend data points
+            if (lastX === length && lastY.toFixed(4) === entropy.toFixed(4)) { return; } 
+            else if (lastX === length) { entropyTrendData.y[entropyTrendData.y.length - 1] = entropy; } 
+            else { entropyTrendData.x.push(length); entropyTrendData.y.push(entropy); }
             const MAX_TREND_POINTS = 100; 
             if (entropyTrendData.x.length > MAX_TREND_POINTS) {
-                entropyTrendData.x.shift();
-                entropyTrendData.y.shift();
+                entropyTrendData.x.shift(); entropyTrendData.y.shift();
             }
             updateEntropyTrendChart();
         }
@@ -338,7 +336,6 @@
             updateEntropyTrendChart();
         }
         
-        // --- Core Logic ---
         async function checkModelStatus() {
             updateGlobalStatus('Checking server status...', 'info');
             setControlsDisabled(true);
@@ -352,20 +349,29 @@
                     updateGlobalStatus(`Model ${currentModelDisplayName} on ${data.device}. Ready.`, 'success');
                     modelReady = true;
                     setControlsDisabled(false);
-                    // Initial visualization, but also reset trend for a fresh start with the app
                     resetEntropyTrend(); 
                     updateVisualization(); 
-                } else if (data.status === 'loading_model') { /* ... same ... */ } 
-                else if (data.status === 'error') { /* ... same ... */ } 
-                else { /* ... same ... */ }
-            } catch (error) { /* ... same ... */ }
+                } else if (data.status === 'loading_model') { 
+                    updateGlobalStatus(`Model '${currentModelDisplayName}' is loading... Please wait.`, 'loading_model');
+                    modelReady = false; setTimeout(checkModelStatus, 3000); 
+                } else if (data.status === 'error') { 
+                    updateGlobalStatus(`Model Error: ${data.message || 'Unknown error'}`, 'error');
+                    modelReady = false; setControlsDisabled(true);
+                } else { 
+                    updateGlobalStatus(data.message || 'Server initializing...', 'info');
+                    modelReady = false; setTimeout(checkModelStatus, 3000);
+                }
+            } catch (error) { 
+                console.error('Error checking model status:', error);
+                updateGlobalStatus(`Error connecting to server. Is it running? Retrying...`, 'error');
+                modelReady = false; setTimeout(checkModelStatus, 5000);
+            }
         }
         
         function displayInputTokenization(tokens, ids) {
             if (!inputTokenizationDiv) return;
             if (!tokens || tokens.length === 0) {
-                inputTokenizationDiv.innerHTML = '<em>No input text.</em>';
-                return;
+                inputTokenizationDiv.innerHTML = '<em>No input text.</em>'; return;
             }
             let html = '';
             tokens.forEach((token, index) => {
@@ -386,11 +392,15 @@
             const text = textInput.value;
             const topK = parseInt(topKInput.value, 10) || 15;
             const temperature = parseFloat(temperatureInput.value) || 1.0;
+            const useLogScale = logScaleCheckbox && logScaleCheckbox.checked; // Get log scale state
 
             if (isUserInput) { updateGlobalStatus('Fetching predictions...', 'info'); }
             isFetchingPrediction = true;
             if(entropyDisplay) entropyDisplay.textContent = 'Entropy: Calculating...';
             if(cumulativeProbDisplay) cumulativeProbDisplay.textContent = 'Top K Cum. Prob: -';
+            currentTopKData = null; 
+            if(copyTopKButton) copyTopKButton.disabled = true;
+
 
             try {
                 const startTime = performance.now();
@@ -418,14 +428,16 @@
                 
                 displayInputTokenization(data.input_tokens_display, data.input_token_ids_display);
                 
-                // Add to history and entropy trend only if it's a user-driven update or the text changed
-                // This avoids adding multiple identical history entries if only temperature changes, for example.
-                // The trend, however, should update its last point if entropy changes for the same length.
                 if (isUserInput || (inputHistory.length === 0 || inputHistory[0].text !== text)) {
                     addInputToHistory(text, data.entropy);
                 }
                 addDataToEntropyTrend(text.length, data.entropy);
 
+                currentTopKData = { 
+                    tokens: data.top_k_tokens,
+                    probabilities: data.top_k_probabilities
+                };
+                if(copyTopKButton) copyTopKButton.disabled = false;
 
                 const originalTokensForClick = data.top_k_tokens; 
                 const plotData = [{
@@ -434,12 +446,25 @@
                     customdata: originalTokensForClick, textposition: 'auto', hoverinfo: 'x+text',
                     marker: { color: data.top_k_probabilities, colorscale: 'Viridis', showscale: false }
                 }];
+                
+                const yAxisLayout = {
+                    title: 'Probability', automargin: true
+                };
+                if (useLogScale) {
+                    yAxisLayout.type = 'log';
+                    yAxisLayout.autorange = true; 
+                } else {
+                    yAxisLayout.type = 'linear';
+                    yAxisLayout.range = [0, Math.max(0.001, ...data.top_k_probabilities) * 1.15];
+                }
+
                 const layout = {
                     title: `Top ${data.top_k_tokens.length} Next Token Probabilities (Temp: ${data.applied_temperature.toFixed(2)})`,
                     xaxis: { title: 'Token', tickangle: -45, type: 'category', automargin: true, tickfont: { family: 'monospace', size: 10 } },
-                    yaxis: { title: 'Probability', range: [0, Math.max(0.001, ...data.top_k_probabilities) * 1.15], automargin: true },
+                    yaxis: yAxisLayout, 
                     margin: { l: 60, r: 20, b: 120, t: 60, pad: 4 }
                 };
+                
                 Plotly.newPlot(chartDiv, plotData, layout, { responsive: true });
 
                 chartDiv.on('plotly_click', function(eventData){
@@ -464,6 +489,7 @@
                 if(cumulativeProbDisplay) cumulativeProbDisplay.textContent = 'Top K Cum. Prob: Error';
                 updateGlobalStatus(`Error: ${error.message}`, 'error');
                 displayInputTokenization([], []);
+                if(copyTopKButton) copyTopKButton.disabled = true;
             } finally { isFetchingPrediction = false; }
         }
 
@@ -472,12 +498,10 @@
             clearTimeout(debounceTimer);
             updateGlobalStatus('Waiting for input...', 'info');
             const currentText = textInput.value;
-            
             const prevTextLength = entropyTrendData.x.length > 0 ? entropyTrendData.x[entropyTrendData.x.length -1] : 0;
-            if (currentText.trim() === "" && prevTextLength !== 0) { // Reset trend if input is cleared AND trend wasn't already at 0 length
+            if (currentText.trim() === "" && prevTextLength !== 0) { 
                 resetEntropyTrend();
             }
-
             if (!currentText) { displayInputTokenization([],[]); } 
             else { if (inputTokenizationDiv) inputTokenizationDiv.innerHTML = '<em>Tokenizing...</em>'; }
             debounceTimer = setTimeout(() => updateVisualization(true), 600);
@@ -486,11 +510,44 @@
         function handleParamChange() { 
             if (modelReady) {
                 clearTimeout(debounceTimer);
-                if (temperatureValueDisplay) {
+                if (temperatureValueDisplay && temperatureInput) {
                     temperatureValueDisplay.textContent = parseFloat(temperatureInput.value).toFixed(2);
                 }
                 debounceTimer = setTimeout(() => updateVisualization(true), 300);
             }
+        }
+
+        if(logScaleCheckbox) {
+            logScaleCheckbox.addEventListener('change', () => {
+                if (modelReady) {
+                    updateVisualization(false); 
+                }
+            });
+        }
+
+        if(copyTopKButton) {
+            copyTopKButton.addEventListener('click', async () => {
+                if (!currentTopKData || !navigator.clipboard) {
+                    alert('No data to copy or clipboard API not available.');
+                    return;
+                }
+                let textToCopy = "Token\tProbability\n"; // Header for CSV-like format
+                currentTopKData.tokens.forEach((token, index) => {
+                    const cleanToken = token.replace(/\n/g, '\\n').replace(/\t/g, '\\t'); 
+                    textToCopy += `${cleanToken}\t${currentTopKData.probabilities[index].toFixed(6)}\n`;
+                });
+
+                try {
+                    await navigator.clipboard.writeText(textToCopy);
+                    if (copyFeedbackSpan) {
+                        copyFeedbackSpan.classList.add('show');
+                        setTimeout(() => { copyFeedbackSpan.classList.remove('show'); }, 2000);
+                    }
+                } catch (err) {
+                    console.error('Failed to copy text: ', err);
+                    alert('Failed to copy data. See console for details.');
+                }
+            });
         }
 
         surpriseMeButton.addEventListener('click', () => {
@@ -520,16 +577,17 @@
         topKInput.addEventListener('change', handleParamChange);
         topKInput.addEventListener('input', () => { 
             clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => handleParamChange(true), 700); // Changed to pass true for isUserInput
+            debounceTimer = setTimeout(() => handleParamChange(true), 700); 
         });
         temperatureInput.addEventListener('input', () => { 
-            if (temperatureValueDisplay) { temperatureValueDisplay.textContent = parseFloat(temperatureInput.value).toFixed(2); }
+            if (temperatureValueDisplay && temperatureInput) { temperatureValueDisplay.textContent = parseFloat(temperatureInput.value).toFixed(2); }
         });
         temperatureInput.addEventListener('change', handleParamChange);
 
         // --- Initializations ---
         if (temperatureValueDisplay && temperatureInput) { temperatureValueDisplay.textContent = parseFloat(temperatureInput.value).toFixed(2); }
         if (modelNameDisplay) { modelNameDisplay.textContent = currentModelDisplayName; }
+        if(copyTopKButton) copyTopKButton.disabled = true; 
         updateInputHistoryDisplay(); 
         updateEntropyTrendChart(); 
         checkModelStatus(); 
