@@ -14,15 +14,16 @@
         
         .panel { background-color: #ffffff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.08); }
 
-        #config-panel { display: flex; flex-wrap: wrap; gap: 20px; align-items: center; justify-content: space-between; }
-        .config-group { display: flex; flex-wrap: wrap; gap: 20px; align-items: center; } 
-        .config-item { display: flex; flex-direction: column; gap: 5px; }
+        #config-panel { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-end; justify-content: space-between; }
+        .config-group { display: flex; flex-wrap: wrap; gap: 15px 20px; align-items: flex-start; } 
+        .config-item { display: flex; flex-direction: column; gap: 5px; min-width: 150px;}
         .config-item label, .config-item .checkbox-label { font-size: 0.9em; color: #495057; }
         .config-item input[type="number"], .config-item input[type="range"] {
-            padding: 8px 10px; font-size: 0.95em; border: 1px solid #ced4da; border-radius: 4px; min-width: 100px;
+            padding: 8px 10px; font-size: 0.95em; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; width: 100%;
         }
+        .config-item input[type="number"] { max-width: 100px;}
         .config-item input[type="checkbox"] { margin-right: 5px; vertical-align: middle; }
-        #temperature-value { font-weight: bold; color: #007bff; }
+        #temperature-value, #top-p-value { font-weight: bold; color: #007bff; } /* Combined for temp and top-p */
         .action-buttons button { padding: 8px 12px; font-size: 0.9em; border: 1px solid #6c757d; border-radius: 4px; background-color: #6c757d; color: white; cursor: pointer; transition: background-color 0.2s; }
         .action-buttons button:hover { background-color: #5a6268; }
         .action-buttons button:disabled { background-color: #adb5bd; cursor: not-allowed;}
@@ -62,10 +63,11 @@
 
         #output-section { display: flex; flex-direction: column; }
         .chart-controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap:10px;}
-        .chart-controls .config-item {flex-direction: row; align-items: center; gap: 5px;}
+        .chart-controls .config-item {flex-direction: row; align-items: center; gap: 5px;} /* For checkboxes */
         #probability-chart { width: 100%; min-height: 400px; }
         
-        .side-panel-section h4 { margin-top: 0; margin-bottom: 10px; font-size: 1.05em; color: #343a40; }
+        .side-panel-section h4 { margin-top: 0; margin-bottom: 10px; font-size: 1.05em; color: #343a40; display: flex; justify-content: space-between; align-items: center;}
+        .side-panel-section h4 button { font-size: 0.75em; padding: 3px 6px;}
         #input-history-list { list-style: none; padding: 0; margin: 0; max-height: 150px; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: 4px;}
         #input-history-list li { padding: 6px 10px; font-size: 0.85em; cursor: pointer; border-bottom: 1px solid #eee; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         #input-history-list li:last-child { border-bottom: none; }
@@ -98,12 +100,16 @@
         <div id="config-panel" class="panel">
             <div class="config-group">
                 <div class="config-item">
-                    <label for="top-k-input">Top K Tokens (1-50):</label>
+                    <label for="top-k-input">Top K (1-50):</label>
                     <input type="number" id="top-k-input" value="15" min="1" max="50">
                 </div>
                 <div class="config-item">
                     <label for="temperature-input">Temperature (<span id="temperature-value">1.00</span>):</label>
                     <input type="range" id="temperature-input" min="0.01" max="2.0" step="0.01" value="1.0">
+                </div>
+                <div class="config-item"> <!-- NEW Top-P Control -->
+                    <label for="top-p-input">Top-P (<span id="top-p-value">1.00</span>):</label>
+                    <input type="range" id="top-p-input" min="0.01" max="1.0" step="0.01" value="1.0">
                 </div>
             </div>
             <div class="action-buttons">
@@ -138,9 +144,15 @@
 
                 <div id="output-section" class="panel">
                     <div class="chart-controls">
-                        <div class="config-item">
-                            <input type="checkbox" id="log-scale-checkbox">
-                            <label for="log-scale-checkbox" class="checkbox-label">Use Log Scale for Probabilities</label>
+                        <div style="display: flex; flex-wrap:wrap; gap: 15px;"> <!-- Wrapper for checkboxes -->
+                            <div class="config-item"> <!-- Log Scale Checkbox -->
+                                <input type="checkbox" id="log-scale-checkbox">
+                                <label for="log-scale-checkbox" class="checkbox-label">Log Scale (Prob)</label>
+                            </div>
+                            <div class="config-item"> <!-- NEW Raw Tokens Checkbox -->
+                                <input type="checkbox" id="raw-tokens-checkbox">
+                                <label for="raw-tokens-checkbox" class="checkbox-label">Show Raw Tokens</label>
+                            </div>
                         </div>
                         <button id="copy-topk-button" class="action-buttons" title="Copy Top K tokens and probabilities">📋 Copy Top K <span id="copy-feedback" class="copy-feedback">Copied!</span></button>
                     </div>
@@ -150,13 +162,19 @@
 
             <div id="side-panel">
                 <div class="panel side-panel-section">
-                    <h4>Input History (Last <span id="max-history-count">5</span>)</h4>
+                    <h4>
+                        <span>Input History (Last <span id="max-history-count">5</span>)</span>
+                        <button id="clear-history-button" title="Clear input history">Clear</button> <!-- NEW -->
+                    </h4>
                     <ul id="input-history-list">
                         <li><em>No history yet.</em></li>
                     </ul>
                 </div>
                 <div class="panel side-panel-section">
-                    <h4>Entropy Trend (vs. Input Length)</h4>
+                    <h4>
+                        <span>Entropy Trend (vs. Input Length)</span>
+                        <button id="clear-trend-button" title="Clear entropy trend">Clear</button> <!-- NEW -->
+                    </h4>
                     <div id="entropy-trend-chart"></div>
                 </div>
             </div>
@@ -178,23 +196,26 @@
                 </li>
                 <li><strong>Top K Tokens:</strong> Adjust how many of the most probable next tokens are displayed.</li>
                 <li><strong>Temperature:</strong> Controls the randomness of the predictions. Lower is more deterministic, higher is more random.</li>
+                <li><strong>Top-P (Nucleus Sampling):</strong> Filters predictions to the smallest set of tokens whose cumulative probability exceeds 'P'. A P of 1.0 is off. Lower values make output more focused.</li>
                 <li><strong>Entropy:</strong> Measures uncertainty. Low = confident, High = uncertain.</li>
                 <li><strong>Top K Cumulative Probability:</strong> Sum of probabilities for the displayed Top K tokens.</li>
                 <li><strong>Input Tokenization:</strong> Shows how your input text is tokenized.</li>
-                <li><strong>Probability Chart:</strong> Visualizes next token probabilities. Click a bar to append the token.</li>
-                <li><strong>Log Scale for Probabilities:</strong> Toggle to view y-axis on a logarithmic scale.</li>
+                <li><strong>Probability Chart:</strong> Visualizes next token probabilities. Click a bar to append the (cleaned) token.</li>
+                <li><strong>Log Scale for Probabilities:</strong> Toggle to view y-axis on a logarithmic scale. Useful for skewed distributions.</li>
+                <li><strong>Show Raw Tokens in Chart:</strong> Toggle to display raw model tokens (e.g., with `Ġ`) or cleaned tokens on the chart's X-axis.</li>
                 <li><strong>Copy Top K:</strong> Copies tokens and probabilities to clipboard.</li>
                 <li><strong>Surprise Me:</strong> Fills input with a random phrase.</li>
-                <li><strong>Clear Button:</strong> Clears the text input area (also <kbd>Esc</kbd> key).</li>
-                <li><strong>Input History:</strong> Recent inputs and their entropy. Click to reload.</li>
-                <li><strong>Entropy Trend:</strong> Plots entropy against input length.</li>
+                <li><strong>Clear Button (Text Input):</strong> Clears the text input area (also <kbd>Esc</kbd> key).</li>
+                <li><strong>Input History:</strong> Recent inputs and their entropy. Click to reload. Can be cleared.</li>
+                <li><strong>Entropy Trend:</strong> Plots entropy against input length for the current session. Can be cleared.</li>
+                <li><strong>Persistent Settings:</strong> Top-K, Temperature, Top-P, Log Scale, and Raw Token display preferences are saved in your browser.</li>
             </ul>
             <p><em>Model Used: GPT-2 (Small)</em></p>
         </div>
     </div>
 
     <script>
-        // DOM Elements (existing and new)
+        // DOM Elements
         const textInput = document.getElementById('text-input');
         const entropyDisplay = document.getElementById('entropy-display');
         const cumulativeProbDisplay = document.getElementById('cumulative-prob-display');
@@ -204,6 +225,8 @@
         const loadingSpinner = document.getElementById('loading-spinner');
         const temperatureInput = document.getElementById('temperature-input');
         const temperatureValueDisplay = document.getElementById('temperature-value');
+        const topPInput = document.getElementById('top-p-input'); // NEW
+        const topPValueDisplay = document.getElementById('top-p-value'); // NEW
         const inputTokenizationDiv = document.getElementById('input-tokenization-display');
         const modelNameDisplay = document.getElementById('model-name-display');
         const surpriseMeButton = document.getElementById('surprise-me-button');
@@ -215,10 +238,13 @@
         const entropyTrendChartDiv = document.getElementById('entropy-trend-chart');
         const maxHistoryCountDisplay = document.getElementById('max-history-count');
         const logScaleCheckbox = document.getElementById('log-scale-checkbox');
+        const rawTokensCheckbox = document.getElementById('raw-tokens-checkbox'); // NEW
         const copyTopKButton = document.getElementById('copy-topk-button');
         const copyFeedbackSpan = document.getElementById('copy-feedback');
+        const clearHistoryButton = document.getElementById('clear-history-button'); // NEW
+        const clearTrendButton = document.getElementById('clear-trend-button'); // NEW
 
-        const allControls = [textInput, topKInput, temperatureInput, surpriseMeButton, clearTextButton, helpButton, logScaleCheckbox, copyTopKButton];
+        const allControls = [textInput, topKInput, temperatureInput, topPInput, surpriseMeButton, clearTextButton, helpButton, logScaleCheckbox, rawTokensCheckbox, copyTopKButton, clearHistoryButton, clearTrendButton];
 
         // State
         let debounceTimer;
@@ -227,37 +253,195 @@
         let modelReady = false;
         let currentTopKData = null;
 
-        const surprisePhrases = [ /* ... same ... */ ];
+        const surprisePhrases = [
+            "The quick brown fox jumps over the lazy", "Artificial intelligence is rapidly changing the", "In a hole in the ground there lived a",
+            "The weather forecast for tomorrow is", "Once upon a time, in a land far away,", "To be or not to be, that is the",
+            "The meaning of life is", "One small step for man, one giant leap for", "Hello world, this is a test of the", "Entropy in language models refers to"
+        ];
         const MAX_HISTORY_ITEMS = 5;
         let inputHistory = []; 
         let entropyTrendData = { x: [], y: [] }; 
         if(maxHistoryCountDisplay) maxHistoryCountDisplay.textContent = MAX_HISTORY_ITEMS;
 
-
         // --- UI Update Functions ---
         function showSpinner(show) { if(loadingSpinner) loadingSpinner.style.display = show ? 'inline-block' : 'none'; }
         function setControlsDisabled(disabled) { allControls.forEach(control => { if(control) control.disabled = disabled; }); }
-        function updateGlobalStatus(message, type = 'info') { /* ... same ... */ }
+        function updateGlobalStatus(message, type = 'info') {
+            if (globalStatusDiv) {
+                globalStatusDiv.textContent = message;
+                globalStatusDiv.className = ''; // Clear previous classes
+                if (type === 'error') globalStatusDiv.classList.add('error-message');
+                else if (type === 'success') globalStatusDiv.classList.add('success-message');
+                else globalStatusDiv.classList.add('info-message');
+            }
+            showSpinner(type === 'info' && message.toLowerCase().includes('fetching'));
+        }
         
+        // --- Settings Persistence ---
+        function saveSettings() {
+            if (topKInput) localStorage.setItem('entropyVisTopK', topKInput.value);
+            if (temperatureInput) localStorage.setItem('entropyVisTemp', temperatureInput.value);
+            if (topPInput) localStorage.setItem('entropyVisTopP', topPInput.value); // NEW
+            if (logScaleCheckbox) localStorage.setItem('entropyVisLogScale', logScaleCheckbox.checked);
+            if (rawTokensCheckbox) localStorage.setItem('entropyVisRawTokens', rawTokensCheckbox.checked); // NEW
+        }
+
+        function loadSettings() {
+            const savedTopK = localStorage.getItem('entropyVisTopK');
+            if (savedTopK && topKInput) topKInput.value = parseInt(savedTopK, 10);
+
+            const savedTemp = localStorage.getItem('entropyVisTemp');
+            if (savedTemp && temperatureInput && temperatureValueDisplay) {
+                temperatureInput.value = parseFloat(savedTemp);
+                temperatureValueDisplay.textContent = parseFloat(savedTemp).toFixed(2);
+            }
+
+            const savedTopP = localStorage.getItem('entropyVisTopP'); // NEW
+            if (savedTopP && topPInput && topPValueDisplay) {
+                topPInput.value = parseFloat(savedTopP);
+                topPValueDisplay.textContent = parseFloat(savedTopP).toFixed(2);
+            }
+
+            const savedLogScale = localStorage.getItem('entropyVisLogScale');
+            if (savedLogScale && logScaleCheckbox) logScaleCheckbox.checked = JSON.parse(savedLogScale);
+            
+            const savedRawTokens = localStorage.getItem('entropyVisRawTokens'); // NEW
+            if (savedRawTokens && rawTokensCheckbox) rawTokensCheckbox.checked = JSON.parse(savedRawTokens);
+        }
+
         // --- History and Trend Update Functions ---
-        function updateInputHistoryDisplay() { /* ... same ... */ }
-        function addInputToHistory(text, entropy) { /* ... same ... */ }
-        function updateEntropyTrendChart() { /* ... same ... */ }
-        function addDataToEntropyTrend(length, entropy) { /* ... same ... */ }
-        function resetEntropyTrend() { /* ... same ... */ }
+        function updateInputHistoryDisplay() {
+            if (!inputHistoryList) return;
+            inputHistoryList.innerHTML = '';
+            if (inputHistory.length === 0) {
+                inputHistoryList.innerHTML = '<li><em>No history yet.</em></li>';
+            } else {
+                inputHistory.forEach(item => {
+                    const li = document.createElement('li');
+                    li.textContent = item.text.length > 50 ? item.text.substring(0,47) + "..." : (item.text || "‹empty›");
+                    li.title = item.text || "‹empty›";
+                    
+                    const entropySpan = document.createElement('span');
+                    entropySpan.className = 'history-entropy';
+                    entropySpan.textContent = item.entropy.toFixed(3);
+                    li.appendChild(entropySpan);
+
+                    li.onclick = () => {
+                        textInput.value = item.text;
+                        clearTimeout(debounceTimer);
+                        updateVisualization(true);
+                    };
+                    inputHistoryList.appendChild(li);
+                });
+            }
+        }
+        function addInputToHistory(text, entropy) {
+            const existingIndex = inputHistory.findIndex(item => item.text === text);
+            if (existingIndex > -1) inputHistory.splice(existingIndex, 1);
+            inputHistory.unshift({ text, entropy });
+            if (inputHistory.length > MAX_HISTORY_ITEMS) inputHistory.pop();
+            updateInputHistoryDisplay();
+        }
+        function clearInputHistory() { // NEW
+            inputHistory = [];
+            updateInputHistoryDisplay();
+        }
+
+        function updateEntropyTrendChart() {
+            if (!entropyTrendChartDiv) return;
+            const trace = {
+                x: entropyTrendData.x, y: entropyTrendData.y, mode: 'lines+markers', type: 'scatter',
+                marker: {size: 6, color: '#007bff'}, line: {color: '#007bff'}
+            };
+            const layout = {
+                xaxis: { title: 'Input Text Length', automargin: true },
+                yaxis: { title: 'Entropy (bits)', automargin: true, range: [0, Math.max(1, ...entropyTrendData.y) * 1.1 || 10] },
+                margin: { l: 50, r: 20, b: 40, t: 20 },
+                paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+                font: {size:10}
+            };
+             if (entropyTrendData.x.length === 0 && entropyTrendData.y.length === 0) {
+                Plotly.purge(entropyTrendChartDiv); // Clear if no data
+            } else {
+                Plotly.react(entropyTrendChartDiv, [trace], layout, { responsive: true, displaylogo: false });
+            }
+        }
+        function addDataToEntropyTrend(length, entropy) {
+            if (entropyTrendData.x.includes(length)) { // Update if length exists
+                const idx = entropyTrendData.x.indexOf(length);
+                entropyTrendData.y[idx] = entropy;
+            } else { // Add new point and sort
+                entropyTrendData.x.push(length);
+                entropyTrendData.y.push(entropy);
+                // Keep data sorted by x for a proper line plot
+                let combined = entropyTrendData.x.map((val, i) => ({x: val, y: entropyTrendData.y[i]}));
+                combined.sort((a, b) => a.x - b.x);
+                entropyTrendData.x = combined.map(d => d.x);
+                entropyTrendData.y = combined.map(d => d.y);
+            }
+            updateEntropyTrendChart();
+        }
+        function resetEntropyTrend() {
+            entropyTrendData = { x: [], y: [] };
+            updateEntropyTrendChart();
+        }
+        function clearEntropyTrend() { // NEW
+            resetEntropyTrend();
+        }
         
         // --- Core Logic ---
-        async function checkModelStatus() { /* ... same ... */ }
-        function displayInputTokenization(tokens, ids) { /* ... same ... */ }
+        async function checkModelStatus() {
+            try {
+                setControlsDisabled(true);
+                updateGlobalStatus('Checking model status...', 'info');
+                const response = await fetch('/status');
+                const data = await response.json();
+
+                if(data.model_display_name) currentModelDisplayName = data.model_display_name;
+                if(modelNameDisplay) modelNameDisplay.textContent = currentModelDisplayName;
+
+                if (data.status === 'ready') {
+                    modelReady = true;
+                    updateGlobalStatus(`Model '${currentModelDisplayName}' ready on ${data.device}.`, 'success');
+                    setControlsDisabled(false);
+                    updateVisualization(false); // Initial prediction for empty input
+                } else if (data.status === 'loading_model') {
+                    updateGlobalStatus(data.message || `Model '${currentModelDisplayName}' is loading...`, 'info');
+                    setTimeout(checkModelStatus, 2000); // Poll status
+                } else if (data.status === 'error') {
+                    updateGlobalStatus(`Error: ${data.message}`, 'error');
+                    setControlsDisabled(true);
+                } else {
+                     updateGlobalStatus('Server initializing or unknown status...', 'info');
+                    setTimeout(checkModelStatus, 2000);
+                }
+            } catch (error) {
+                updateGlobalStatus('Failed to connect to server. Retrying...', 'error');
+                setControlsDisabled(true);
+                setTimeout(checkModelStatus, 5000);
+            }
+        }
+
+        function displayInputTokenization(tokens, ids) {
+            if (!inputTokenizationDiv) return;
+            if (!tokens || tokens.length === 0) {
+                inputTokenizationDiv.innerHTML = 'No input text.';
+                return;
+            }
+            inputTokenizationDiv.innerHTML = tokens.map((token, i) => 
+                `<span class="token" title="ID: ${ids[i]}">${token.replace(/ /g, ' ').replace(/\n/g, '↵')}<span class="token-id">(${ids[i]})</span></span>`
+            ).join('');
+        }
 
         async function updateVisualization(isUserInput = true) {
-            // ... (Existing updateVisualization logic, including logScaleCheckbox.checked and yAxisLayout generation) ...
              if (isFetchingPrediction || !modelReady) { return; }
 
             const text = textInput.value;
             const topK = parseInt(topKInput.value, 10) || 15;
             const temperature = parseFloat(temperatureInput.value) || 1.0;
+            const topP = parseFloat(topPInput.value) || 1.0; // NEW: Get Top-P
             const useLogScale = logScaleCheckbox && logScaleCheckbox.checked;
+            const showRawTokensInChart = rawTokensCheckbox && rawTokensCheckbox.checked; // NEW
 
             if (isUserInput) { updateGlobalStatus('Fetching predictions...', 'info'); }
             isFetchingPrediction = true;
@@ -271,7 +455,7 @@
                 const response = await fetch('/get_entropy', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: text, top_k: topK, temperature: temperature }),
+                    body: JSON.stringify({ text: text, top_k: topK, temperature: temperature, top_p: topP }), // NEW: Send Top-P
                 });
                 const endTime = performance.now();
                 const duration = ((endTime - startTime) / 1000).toFixed(2);
@@ -284,7 +468,7 @@
                 }
                 if (data.error_message) { throw new Error(data.error_message); }
                 
-                Plotly.purge(chartDiv);
+                Plotly.purge(chartDiv); // Clear previous plot and events
                 if(entropyDisplay) entropyDisplay.textContent = `Entropy: ${data.entropy.toFixed(4)}`;
                 
                 const sumTopKProb = data.top_k_probabilities.reduce((sum, p) => sum + p, 0);
@@ -298,16 +482,23 @@
                 addDataToEntropyTrend(text.length, data.entropy);
 
                 currentTopKData = { 
-                    tokens: data.top_k_tokens,
+                    tokens: data.top_k_tokens, // Cleaned tokens
+                    raw_tokens: data.top_k_raw_tokens, // Raw tokens
                     probabilities: data.top_k_probabilities
                 };
                 if(copyTopKButton) copyTopKButton.disabled = false;
 
-                const originalTokensForClick = data.top_k_tokens; 
+                const originalTokensForClick = data.top_k_tokens; // Always use cleaned tokens for click-to-append
+                const chartXLabels = showRawTokensInChart 
+                    ? data.top_k_raw_tokens 
+                    : data.top_k_tokens.map(token => token.replace(/ /g, '\u00A0').replace(/\n/g, '↵').replace(/\t/g, '\u2192\t'));
+
                 const plotData = [{
-                    x: data.top_k_tokens.map(token => token.replace(/ /g, '\u00A0').replace(/\n/g, '↵').replace(/\t/g, '\u2192\t')),
-                    y: data.top_k_probabilities, type: 'bar', text: data.top_k_probabilities.map(p => (p * 100).toFixed(2) + '%'),
-                    customdata: originalTokensForClick, textposition: 'auto', hoverinfo: 'x+text',
+                    x: chartXLabels,
+                    y: data.top_k_probabilities, type: 'bar', 
+                    text: data.top_k_probabilities.map(p => (p * 100).toFixed(2) + '%'),
+                    customdata: originalTokensForClick, // For click event, use cleaned tokens
+                    textposition: 'auto', hoverinfo: 'x+text',
                     marker: { color: data.top_k_probabilities, colorscale: 'Viridis', showscale: false }
                 }];
                 
@@ -319,25 +510,32 @@
                 }
 
                 const layout = {
-                    title: `Top ${data.top_k_tokens.length} Next Token Probabilities (Temp: ${data.applied_temperature.toFixed(2)})`,
+                    title: `Top ${data.top_k_tokens.length} Next Token Probabilities (Temp: ${data.applied_temperature.toFixed(2)}, Top-P: ${data.applied_top_p.toFixed(2)})`,
                     xaxis: { title: 'Token', tickangle: -45, type: 'category', automargin: true, tickfont: { family: 'monospace', size: 10 } },
                     yaxis: yAxisLayout, 
-                    margin: { l: 60, r: 20, b: 120, t: 60, pad: 4 }
+                    margin: { l: 60, r: 20, b: 120, t: 60, pad: 4 },
+                    paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)'
                 };
-                Plotly.newPlot(chartDiv, plotData, layout, { responsive: true });
+                Plotly.newPlot(chartDiv, plotData, layout, { responsive: true, displaylogo: false });
 
                 chartDiv.on('plotly_click', function(eventData){
                     if(eventData.points && eventData.points.length > 0){
-                        const clickedToken = eventData.points[0].customdata;
+                        const clickedToken = eventData.points[0].customdata; // This is the cleaned token
                         let currentText = textInput.value;
-                        if (clickedToken.startsWith(' ') || currentText.endsWith(' ') || currentText.length === 0 || clickedToken === '\n') {
+                        if (clickedToken.startsWith(' ') || currentText.endsWith(' ') || currentText.length === 0 || clickedToken === '\n' || clickedToken === ' ') {
                             textInput.value += clickedToken;
                         } else { textInput.value += ' ' + clickedToken; }
                         textInput.focus(); clearTimeout(debounceTimer); updateVisualization(false); 
                     }
                 });
                 updateGlobalStatus(`Ready. (Fetch time: ${duration}s)`, 'success');
-            } catch (error) { /* ... same error handling ... */ } 
+            } catch (error) {
+                updateGlobalStatus(`Error: ${error.message}`, 'error');
+                console.error("Update visualization error:", error);
+                if(entropyDisplay) entropyDisplay.textContent = 'Entropy: Error';
+                if(cumulativeProbDisplay) cumulativeProbDisplay.textContent = 'Top K Cum. Prob: -';
+                Plotly.purge(chartDiv);
+            } 
             finally { isFetchingPrediction = false; }
         }
 
@@ -346,8 +544,11 @@
             clearTimeout(debounceTimer);
             updateGlobalStatus('Waiting for input...', 'info');
             const currentText = textInput.value;
-            const prevTextLength = entropyTrendData.x.length > 0 ? entropyTrendData.x[entropyTrendData.x.length -1] : 0;
-            if (currentText.trim() === "" && prevTextLength !== 0) { resetEntropyTrend(); }
+            const prevTextLength = entropyTrendData.x.length > 0 ? entropyTrendData.x[entropyTrendData.x.length -1] : null;
+            
+            if (currentText.trim() === "" && prevTextLength !== 0 && prevTextLength !== null) { 
+                // resetEntropyTrend(); // Only reset trend if input becomes empty AFTER having content
+            }
             if (!currentText) { displayInputTokenization([],[]); } 
             else { if (inputTokenizationDiv) inputTokenizationDiv.innerHTML = '<em>Tokenizing...</em>'; }
             debounceTimer = setTimeout(() => updateVisualization(true), 600);
@@ -359,6 +560,10 @@
                 if (temperatureValueDisplay && temperatureInput) {
                     temperatureValueDisplay.textContent = parseFloat(temperatureInput.value).toFixed(2);
                 }
+                if (topPValueDisplay && topPInput) { // NEW: Update Top-P display
+                    topPValueDisplay.textContent = parseFloat(topPInput.value).toFixed(2);
+                }
+                saveSettings(); // Save on any param change
                 debounceTimer = setTimeout(() => updateVisualization(true), 300);
             }
         }
@@ -366,34 +571,66 @@
         // --- Event Listeners ---
         if(logScaleCheckbox) {
             logScaleCheckbox.addEventListener('change', () => {
-                if (modelReady) { updateVisualization(false); }
+                if (modelReady) { updateVisualization(false); saveSettings(); }
+            });
+        }
+        if(rawTokensCheckbox) { // NEW
+            rawTokensCheckbox.addEventListener('change', () => {
+                if (modelReady) { updateVisualization(false); saveSettings(); }
             });
         }
 
-        if(copyTopKButton) { /* ... same as before ... */ }
+        if(copyTopKButton) {
+            copyTopKButton.addEventListener('click', () => {
+                if (!currentTopKData || !currentTopKData.tokens || currentTopKData.tokens.length === 0) {
+                    alert("No data to copy."); return;
+                }
+                const useRaw = rawTokensCheckbox && rawTokensCheckbox.checked;
+                const tokensToCopy = useRaw ? currentTopKData.raw_tokens : currentTopKData.tokens;
 
-        surpriseMeButton.addEventListener('click', () => { /* ... same ... */ });
-        clearTextButton.addEventListener('click', () => { /* ... same ... */ });
+                let textToCopy = "Token\tProbability\n";
+                for (let i = 0; i < tokensToCopy.length; i++) {
+                    textToCopy += `${tokensToCopy[i].replace(/\n/g, "\\n")}\t${currentTopKData.probabilities[i].toFixed(6)}\n`;
+                }
+                navigator.clipboard.writeText(textToCopy).then(() => {
+                    if(copyFeedbackSpan) copyFeedbackSpan.classList.add('show');
+                    setTimeout(() => { if(copyFeedbackSpan) copyFeedbackSpan.classList.remove('show'); }, 1500);
+                }).catch(err => {
+                    console.error('Failed to copy: ', err);
+                    alert("Failed to copy text.");
+                });
+            });
+        }
+
+        if(surpriseMeButton) surpriseMeButton.addEventListener('click', () => {
+            textInput.value = surprisePhrases[Math.floor(Math.random() * surprisePhrases.length)];
+            clearTimeout(debounceTimer);
+            resetEntropyTrend(); // Reset trend for new distinct input
+            updateVisualization(true);
+        });
+        if(clearTextButton) clearTextButton.addEventListener('click', () => {
+            textInput.value = '';
+            resetEntropyTrend();
+            clearTimeout(debounceTimer);
+            updateVisualization(true);
+            displayInputTokenization([],[]);
+        });
         
-        helpButton.addEventListener('click', () => { if(helpModal) helpModal.style.display = "block"; });
-        closeHelpModalButton.addEventListener('click', () => { if(helpModal) helpModal.style.display = "none"; });
+        if(helpButton) helpButton.addEventListener('click', () => { if(helpModal) helpModal.style.display = "block"; });
+        if(closeHelpModalButton) closeHelpModalButton.addEventListener('click', () => { if(helpModal) helpModal.style.display = "none"; });
         window.onclick = function(event) { if (event.target == helpModal) { helpModal.style.display = "none"; } }
 
-        textInput.addEventListener('input', handleTextInput);
+        if(textInput) textInput.addEventListener('input', handleTextInput);
         
-        // NEW: Keyboard shortcuts for textInput
-        textInput.addEventListener('keydown', (event) => {
+        if(textInput) textInput.addEventListener('keydown', (event) => {
             if (!modelReady) return;
-
-            // Ctrl+Enter or Cmd+Enter to submit
             if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
-                event.preventDefault(); // Prevent default Enter behavior (e.g., newline in textarea)
+                event.preventDefault(); 
                 clearTimeout(debounceTimer);
                 updateVisualization(true);
             }
-            // Escape key to clear
             else if (event.key === 'Escape') {
-                event.preventDefault(); // Prevent default Escape behavior (e.g., closing modals)
+                event.preventDefault(); 
                 textInput.value = '';
                 resetEntropyTrend(); 
                 clearTimeout(debounceTimer);
@@ -402,19 +639,34 @@
             }
         });
 
-        topKInput.addEventListener('change', handleParamChange);
-        topKInput.addEventListener('input', () => { 
-            clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => handleParamChange(true), 700); 
-        });
-        temperatureInput.addEventListener('input', () => { 
-            if (temperatureValueDisplay && temperatureInput) { temperatureValueDisplay.textContent = parseFloat(temperatureInput.value).toFixed(2); }
-        });
-        temperatureInput.addEventListener('change', handleParamChange);
+        if(topKInput) {
+            topKInput.addEventListener('change', handleParamChange);
+            topKInput.addEventListener('input', () => { 
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => handleParamChange(true), 700); 
+            });
+        }
+        if(temperatureInput) {
+            temperatureInput.addEventListener('input', () => { 
+                if (temperatureValueDisplay) temperatureValueDisplay.textContent = parseFloat(temperatureInput.value).toFixed(2); 
+            });
+            temperatureInput.addEventListener('change', handleParamChange);
+        }
+        if(topPInput) { // NEW: Event listeners for Top-P
+            topPInput.addEventListener('input', () => { 
+                if (topPValueDisplay) topPValueDisplay.textContent = parseFloat(topPInput.value).toFixed(2); 
+            });
+            topPInput.addEventListener('change', handleParamChange);
+        }
+        
+        // NEW: Event listeners for clear buttons
+        if(clearHistoryButton) clearHistoryButton.addEventListener('click', clearInputHistory);
+        if(clearTrendButton) clearTrendButton.addEventListener('click', clearEntropyTrend);
 
         // --- Initializations ---
-        // ... (All initializations same as before) ...
+        loadSettings(); // Load saved settings first
         if (temperatureValueDisplay && temperatureInput) { temperatureValueDisplay.textContent = parseFloat(temperatureInput.value).toFixed(2); }
+        if (topPValueDisplay && topPInput) { topPValueDisplay.textContent = parseFloat(topPInput.value).toFixed(2); } // NEW
         if (modelNameDisplay) { modelNameDisplay.textContent = currentModelDisplayName; }
         if(copyTopKButton) copyTopKButton.disabled = true; 
         updateInputHistoryDisplay(); 
