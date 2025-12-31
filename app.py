@@ -95,7 +95,7 @@ def calculate_entropy_value(probabilities: np.ndarray) -> float:
     return float(entropy(probabilities_normalized, base=2))
 
 def get_next_token_predictions(text: str, top_k: int, temperature: float, top_p: float) -> Dict[str, Any]:
-    """Generates next token predictions, probabilities, entropy, and input tokenization."""
+    """Generates next token predictions, probabilities, entropy, input tokenization, and surprise scores."""
     if not model_state["loaded"] or model_state["model"] is None or model_state["tokenizer"] is None:
         raise RuntimeError(f"Model '{model_state['model_name']}' not loaded. Error: {model_state['loading_error']}")
 
@@ -105,12 +105,14 @@ def get_next_token_predictions(text: str, top_k: int, temperature: float, top_p:
 
     temperature = max(MIN_TEMPERATURE, min(temperature, MAX_TEMPERATURE))
     top_p = max(MIN_TOP_P, min(top_p, MAX_TOP_P))
-    applied_top_p = 1.0 # Default if not applied
+    applied_top_p = 1.0
 
     logging.debug(f"Predicting for: '{text[:50]}...', Top K: {top_k}, Temp: {temperature:.2f}, Top-P: {top_p:.2f}")
-    
+
     input_tokens_display = []
     input_token_ids_display = []
+    input_token_surprises = []  # Surprise score for each input token
+
     if text:
         tokenized_input_for_display = tokenizer(text, add_special_tokens=False)
         input_token_ids_display = tokenized_input_for_display.input_ids
@@ -133,48 +135,68 @@ def get_next_token_predictions(text: str, top_k: int, temperature: float, top_p:
                 "top_k_tokens": [f"ERR_{i}" for i in range(top_k)],
                 "top_k_probabilities": (np.ones(top_k) / top_k).tolist(),
                 "input_tokens_display": [], "input_token_ids_display": [],
+                "input_token_surprises": [],
                 "error_message": "Empty input and no BOS token.",
                 "applied_temperature": temperature,
-                "applied_top_p": applied_top_p
+                "applied_top_p": applied_top_p,
+                "coverage_95": 0,
+                "vocab_size": tokenizer.vocab_size
             }
 
     with torch.no_grad():
         outputs = model(input_ids=input_ids, attention_mask=attention_mask)
         logits = outputs.logits
 
+    # Calculate surprise scores for each input token (how surprised was the model?)
+    # For token at position i, we look at logits[i-1] (prediction before seeing token i)
+    if input_ids.shape[1] > 1:
+        for i in range(1, input_ids.shape[1]):
+            token_id = input_ids[0, i].item()
+            prev_logits = logits[0, i-1, :]
+            prev_probs = F.softmax(prev_logits, dim=-1)
+            token_prob = prev_probs[token_id].item()
+            surprise = -np.log2(max(token_prob, 1e-10))  # bits
+            input_token_surprises.append(round(surprise, 2))
+
+    # Pad to match input_tokens_display length (first token has no "surprise" - it's the start)
+    while len(input_token_surprises) < len(input_tokens_display):
+        input_token_surprises.insert(0, 0.0)
+
     next_token_logits = logits[0, -1, :]
-    
+
     # Apply temperature
-    if temperature > 0: # Ensure temperature is positive
+    if temperature > 0:
         next_token_logits = next_token_logits / temperature
-    
+
     # Apply Top-P (Nucleus) Sampling
-    if 0.0 < top_p < 1.0: # Only apply if top_p is in a range that makes sense for filtering
+    if 0.0 < top_p < 1.0:
         top_p_warper = TopPLogitsWarper(top_p=top_p, filter_value=-float("Inf"), min_tokens_to_keep=1)
-        # TopPLogitsWarper expects scores for the whole batch, so add a batch dim for the single sequence and remove it after
-        # It also doesn't need input_ids for its core logic here.
         next_token_logits = top_p_warper(input_ids=None, scores=next_token_logits.unsqueeze(0)).squeeze(0)
         applied_top_p = top_p
-    
+
     probabilities = F.softmax(next_token_logits, dim=-1)
     probabilities_cpu_np: np.ndarray = probabilities.cpu().numpy()
     entropy_val = calculate_entropy_value(probabilities_cpu_np)
 
-    # Ensure top_k is not greater than the vocabulary size after potential Top-P filtering
-    # (or effective vocab size if many logits became -inf)
+    # Calculate 95% coverage: how many tokens needed to cover 95% of probability mass
+    sorted_probs = np.sort(probabilities_cpu_np)[::-1]
+    cumsum = np.cumsum(sorted_probs)
+    coverage_95 = int(np.searchsorted(cumsum, 0.95) + 1)
+
     effective_vocab_size = torch.sum(probabilities > 0).item()
     actual_top_k = min(top_k, effective_vocab_size)
-    if actual_top_k == 0 and effective_vocab_size > 0 : # Should not happen if min_tokens_to_keep=1
-        actual_top_k = 1 
-    elif effective_vocab_size == 0: # All logits were -inf, highly unlikely
-         logging.error("Effective vocabulary size is 0 after filtering. Cannot pick top_k.")
-         return {
+    if actual_top_k == 0 and effective_vocab_size > 0:
+        actual_top_k = 1
+    elif effective_vocab_size == 0:
+        logging.error("Effective vocabulary size is 0 after filtering.")
+        return {
             "entropy": 0.0, "top_k_tokens": ["ERR_NO_TOKENS"], "top_k_raw_tokens": ["ERR_NO_TOKENS"],
             "top_k_probabilities": [1.0], "input_tokens_display": input_tokens_display,
-            "input_token_ids_display": input_token_ids_display, "applied_temperature": temperature,
-            "applied_top_p": applied_top_p, "error_message": "No tokens remained after Top-P/Temp filtering."
-         }
-
+            "input_token_ids_display": input_token_ids_display, "input_token_surprises": input_token_surprises,
+            "applied_temperature": temperature, "applied_top_p": applied_top_p,
+            "error_message": "No tokens remained after Top-P/Temp filtering.",
+            "coverage_95": 0, "vocab_size": tokenizer.vocab_size
+        }
 
     top_k_prob_tensor, top_k_indices_tensor = torch.topk(probabilities, actual_top_k)
     top_k_tokens_decoded: List[str] = [tokenizer.decode(idx.item()) for idx in top_k_indices_tensor.cpu()]
@@ -187,12 +209,15 @@ def get_next_token_predictions(text: str, top_k: int, temperature: float, top_p:
     return {
         "entropy": entropy_val,
         "top_k_tokens": top_k_tokens_cleaned,
-        "top_k_raw_tokens": top_k_tokens_decoded, 
+        "top_k_raw_tokens": top_k_tokens_decoded,
         "top_k_probabilities": top_k_probabilities_list,
         "input_tokens_display": input_tokens_display,
         "input_token_ids_display": input_token_ids_display,
+        "input_token_surprises": input_token_surprises,
         "applied_temperature": temperature,
-        "applied_top_p": applied_top_p
+        "applied_top_p": applied_top_p,
+        "coverage_95": coverage_95,
+        "vocab_size": tokenizer.vocab_size
     }
 
 # --- Flask Routes ---

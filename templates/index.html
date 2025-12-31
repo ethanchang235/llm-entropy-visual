@@ -109,8 +109,15 @@
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
         #input-tokenization-display { margin-top: 10px; padding: 10px; background-color: var(--bg-input); border-radius: 4px; font-size: 0.9em; max-height: 100px; overflow-y: auto; }
-        #input-tokenization-display .token { background-color: var(--token-bg); padding: 2px 5px; margin: 2px; border-radius: 3px; border: 1px solid var(--token-border); display: inline-block; font-family: monospace; }
-        #input-tokenization-display .token .token-id { font-size: 0.8em; color: var(--text-muted); margin-left: 3px; }
+        #input-tokenization-display .token { padding: 2px 5px; margin: 2px; border-radius: 3px; border: 1px solid var(--token-border); display: inline-block; font-family: monospace; cursor: help; transition: transform 0.1s; }
+        #input-tokenization-display .token:hover { transform: scale(1.05); }
+        #input-tokenization-display .token .token-id { font-size: 0.75em; color: var(--text-muted); margin-left: 2px; }
+        #input-tokenization-display .token .surprise-badge { font-size: 0.7em; margin-left: 3px; padding: 1px 3px; border-radius: 2px; background: rgba(0,0,0,0.15); }
+
+        .distribution-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 0.8em; font-weight: 500; margin-left: 8px; }
+        .distribution-peaked { background: #28a745; color: white; }
+        .distribution-moderate { background: #ffc107; color: #333; }
+        .distribution-spread { background: #dc3545; color: white; }
 
         #output-section { display: flex; flex-direction: column; }
         .chart-controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 10px; }
@@ -164,8 +171,9 @@
                 </div>
             </div>
             <div class="action-buttons">
-                <button id="surprise-me-button" title="Fill input with a random phrase">🎲 Surprise Me</button>
-                <button id="help-button" title="Show help information">❓ Help</button>
+                <button id="auto-generate-button" title="Append top predicted token (G)" disabled>▶ Generate</button>
+                <button id="surprise-me-button" title="Fill input with a random phrase">🎲 Surprise</button>
+                <button id="help-button" title="Show help information">❓</button>
                 <button id="theme-toggle" title="Toggle dark/light mode">🌙</button>
             </div>
         </div>
@@ -185,12 +193,14 @@
                     <div id="status-bar">
                         <div id="metrics-display">
                             <div class="metric-row">
-                                <div id="entropy-display">Entropy: -</div>
-                                <div id="perplexity-display">Perplexity: -</div>
+                                <span id="entropy-display">Entropy: -</span>
+                                <span id="perplexity-display">Perplexity: -</span>
+                                <span id="distribution-shape"></span>
                             </div>
                             <div id="prob-stats">
                                 <span id="cumulative-prob-display">Top K: -</span>
                                 <span id="other-prob-display">Other: -</span>
+                                <span id="coverage-display">95% coverage: -</span>
                             </div>
                         </div>
                         <div id="global-status-container">
@@ -205,14 +215,17 @@
                         <div style="display: flex; flex-wrap:wrap; gap: 15px;">
                             <div class="config-item">
                                 <input type="checkbox" id="log-scale-checkbox">
-                                <label for="log-scale-checkbox" class="checkbox-label">Log Scale (Prob)</label>
+                                <label for="log-scale-checkbox" class="checkbox-label">Log Scale</label>
                             </div>
                             <div class="config-item">
                                 <input type="checkbox" id="raw-tokens-checkbox">
-                                <label for="raw-tokens-checkbox" class="checkbox-label">Show Raw Tokens</label>
+                                <label for="raw-tokens-checkbox" class="checkbox-label">Raw Tokens</label>
                             </div>
                         </div>
-                        <button id="copy-topk-button" class="action-buttons" title="Copy Top K tokens and probabilities">📋 Copy Top K <span id="copy-feedback" class="copy-feedback">Copied!</span></button>
+                        <div class="action-buttons">
+                            <button id="export-chart-button" title="Export chart as PNG">📷 Export</button>
+                            <button id="copy-topk-button" title="Copy Top K tokens and probabilities">📋 Copy<span id="copy-feedback" class="copy-feedback">Copied!</span></button>
+                        </div>
                     </div>
                     <div id="probability-chart"></div>
                 </div>
@@ -246,29 +259,32 @@
             <p>This tool visualizes the next token predictions of a Language Model (LLM) and calculates the Shannon entropy of its probability distribution.</p>
             <h4>Metrics</h4>
             <ul>
-                <li><strong>Entropy:</strong> Shannon entropy in bits. Low = confident prediction, High = uncertain. Color-coded from green (low) to red (high).</li>
-                <li><strong>Perplexity:</strong> 2<sup>entropy</sup>. Represents the "effective vocabulary size" the model is choosing from. A perplexity of 10 means the model is as uncertain as if choosing uniformly from 10 equally likely tokens.</li>
-                <li><strong>Top K / Other:</strong> Probability mass in your displayed tokens vs. the rest of the vocabulary.</li>
+                <li><strong>Entropy:</strong> Shannon entropy in bits (color-coded green→red).</li>
+                <li><strong>Perplexity:</strong> 2<sup>entropy</sup> — effective vocabulary size.</li>
+                <li><strong>Distribution Shape:</strong> Peaked (confident), Moderate, or Spread (uncertain).</li>
+                <li><strong>95% Coverage:</strong> How many tokens needed to cover 95% of probability mass.</li>
+                <li><strong>Surprise Scores:</strong> Each input token is colored by how "surprising" it was to the model (green=expected, red=surprising). Surprise = -log₂(probability).</li>
             </ul>
             <h4>Controls</h4>
             <ul>
-                <li><strong>Top K:</strong> Number of most probable tokens to display (1-50).</li>
-                <li><strong>Temperature:</strong> Scales logits before softmax. Lower = sharper distribution (more confident), Higher = flatter (more random).</li>
-                <li><strong>Top-P:</strong> Nucleus sampling threshold. Keeps smallest set of tokens with cumulative probability ≥ P. Set to 1.0 to disable.</li>
+                <li><strong>Generate:</strong> Appends the top predicted token and continues. Hold to auto-generate.</li>
+                <li><strong>Temperature:</strong> Lower = sharper, Higher = flatter distribution.</li>
+                <li><strong>Top-P:</strong> Nucleus sampling — keeps smallest set with cumulative prob ≥ P.</li>
             </ul>
             <h4>Keyboard Shortcuts</h4>
             <ul>
-                <li><kbd>Ctrl</kbd>+<kbd>Enter</kbd> / <kbd>Cmd</kbd>+<kbd>Enter</kbd> — Submit immediately</li>
+                <li><kbd>Ctrl/Cmd</kbd>+<kbd>Enter</kbd> — Submit immediately</li>
                 <li><kbd>Esc</kbd> — Clear input</li>
-                <li><kbd>D</kbd> — Toggle dark mode (when not focused on input)</li>
+                <li><kbd>G</kbd> — Generate (append top token)</li>
+                <li><kbd>D</kbd> — Toggle dark mode</li>
             </ul>
             <h4>Tips</h4>
             <ul>
-                <li>Click any bar in the chart to append that token to your input.</li>
-                <li>Use log scale for highly skewed distributions.</li>
-                <li>Settings persist in your browser's localStorage.</li>
+                <li>Click any bar to append that token.</li>
+                <li>Hover over input tokens to see surprise scores.</li>
+                <li>Use Export to save the chart as PNG.</li>
             </ul>
-            <p><em>Model: GPT-2 (124M parameters)</em></p>
+            <p><em>Model: GPT-2 (124M parameters, ~50k vocab)</em></p>
         </div>
     </div>
 
@@ -279,6 +295,8 @@
         const perplexityDisplay = document.getElementById('perplexity-display');
         const cumulativeProbDisplay = document.getElementById('cumulative-prob-display');
         const otherProbDisplay = document.getElementById('other-prob-display');
+        const coverageDisplay = document.getElementById('coverage-display');
+        const distributionShape = document.getElementById('distribution-shape');
         const chartDiv = document.getElementById('probability-chart');
         const globalStatusDiv = document.getElementById('global-status');
         const topKInput = document.getElementById('top-k-input');
@@ -289,6 +307,7 @@
         const topPValueDisplay = document.getElementById('top-p-value');
         const inputTokenizationDiv = document.getElementById('input-tokenization-display');
         const modelNameDisplay = document.getElementById('model-name-display');
+        const autoGenerateButton = document.getElementById('auto-generate-button');
         const surpriseMeButton = document.getElementById('surprise-me-button');
         const clearTextButton = document.getElementById('clear-text-button');
         const helpButton = document.getElementById('help-button');
@@ -301,25 +320,44 @@
         const logScaleCheckbox = document.getElementById('log-scale-checkbox');
         const rawTokensCheckbox = document.getElementById('raw-tokens-checkbox');
         const copyTopKButton = document.getElementById('copy-topk-button');
+        const exportChartButton = document.getElementById('export-chart-button');
         const copyFeedbackSpan = document.getElementById('copy-feedback');
         const clearHistoryButton = document.getElementById('clear-history-button');
         const clearTrendButton = document.getElementById('clear-trend-button');
 
-        const allControls = [textInput, topKInput, temperatureInput, topPInput, surpriseMeButton, clearTextButton, helpButton, themeToggle, logScaleCheckbox, rawTokensCheckbox, copyTopKButton, clearHistoryButton, clearTrendButton];
+        const allControls = [textInput, topKInput, temperatureInput, topPInput, autoGenerateButton, surpriseMeButton, clearTextButton, helpButton, themeToggle, logScaleCheckbox, rawTokensCheckbox, copyTopKButton, exportChartButton, clearHistoryButton, clearTrendButton];
 
-        // Entropy color scale: green (low/confident) -> yellow -> red (high/uncertain)
+        // Color scales
         function getEntropyColor(entropy) {
-            const maxEntropy = 12; // GPT-2 vocab ~50k, log2(50000) ≈ 15.6, but typical max is lower
+            const maxEntropy = 12;
             const t = Math.min(entropy / maxEntropy, 1);
             if (t < 0.5) {
-                // Green to Yellow
                 const r = Math.round(255 * (t * 2));
                 return `rgb(${r}, 180, 50)`;
             } else {
-                // Yellow to Red
                 const g = Math.round(180 * (1 - (t - 0.5) * 2));
                 return `rgb(255, ${g}, 50)`;
             }
+        }
+
+        // Surprise color: low surprise = green/expected, high surprise = red/unexpected
+        function getSurpriseColor(surprise) {
+            const maxSurprise = 15; // log2(50000) ≈ 15.6 for a completely random token
+            const t = Math.min(surprise / maxSurprise, 1);
+            const r = Math.round(50 + 205 * t);
+            const g = Math.round(180 - 130 * t);
+            const b = 50;
+            return `rgb(${r}, ${g}, ${b})`;
+        }
+
+        // Distribution shape classification
+        function classifyDistribution(probs) {
+            if (!probs || probs.length === 0) return { label: '', class: '' };
+            const topProb = probs[0];
+            const top3Sum = probs.slice(0, 3).reduce((a, b) => a + b, 0);
+            if (topProb > 0.5) return { label: 'Peaked', class: 'distribution-peaked' };
+            if (top3Sum > 0.7) return { label: 'Moderate', class: 'distribution-moderate' };
+            return { label: 'Spread', class: 'distribution-spread' };
         }
 
         // Theme management
@@ -331,6 +369,31 @@
         function toggleTheme() {
             const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
             setTheme(!isDark);
+        }
+
+        // Auto-generate: append top token
+        function autoGenerate() {
+            if (!currentTopKData || !currentTopKData.tokens || currentTopKData.tokens.length === 0) return;
+            const topToken = currentTopKData.tokens[0];
+            if (topToken.startsWith(' ') || textInput.value.endsWith(' ') || textInput.value.length === 0) {
+                textInput.value += topToken;
+            } else {
+                textInput.value += topToken;
+            }
+            textInput.focus();
+            clearTimeout(debounceTimer);
+            updateVisualization(false);
+        }
+
+        // Export chart as PNG
+        function exportChart() {
+            if (!chartDiv) return;
+            Plotly.downloadImage(chartDiv, {
+                format: 'png',
+                width: 1200,
+                height: 600,
+                filename: `entropy-chart-${Date.now()}`
+            });
         }
 
         // State
@@ -506,15 +569,21 @@
             }
         }
 
-        function displayInputTokenization(tokens, ids) {
+        function displayInputTokenization(tokens, ids, surprises = []) {
             if (!inputTokenizationDiv) return;
             if (!tokens || tokens.length === 0) {
                 inputTokenizationDiv.innerHTML = 'No input text.';
                 return;
             }
-            inputTokenizationDiv.innerHTML = tokens.map((token, i) => 
-                `<span class="token" title="ID: ${ids[i]}">${token.replace(/ /g, ' ').replace(/\n/g, '↵')}<span class="token-id">(${ids[i]})</span></span>`
-            ).join('');
+            inputTokenizationDiv.innerHTML = tokens.map((token, i) => {
+                const surprise = surprises[i] || 0;
+                const bgColor = surprise > 0 ? getSurpriseColor(surprise) : 'var(--token-bg)';
+                const surpriseBadge = surprise > 0 ? `<span class="surprise-badge">${surprise.toFixed(1)}b</span>` : '';
+                const title = surprise > 0
+                    ? `ID: ${ids[i]} | Surprise: ${surprise.toFixed(2)} bits`
+                    : `ID: ${ids[i]} | First token (no prior context)`;
+                return `<span class="token" style="background-color: ${bgColor};" title="${title}">${token.replace(/ /g, '␣').replace(/\n/g, '↵')}${surpriseBadge}</span>`;
+            }).join('');
         }
 
         async function updateVisualization(isUserInput = true) {
@@ -533,8 +602,11 @@
             if (perplexityDisplay) perplexityDisplay.textContent = 'Perplexity: ...';
             if (cumulativeProbDisplay) cumulativeProbDisplay.textContent = 'Top K: -';
             if (otherProbDisplay) otherProbDisplay.textContent = 'Other: -';
+            if (coverageDisplay) coverageDisplay.textContent = '95% coverage: -';
+            if (distributionShape) { distributionShape.textContent = ''; distributionShape.className = ''; }
             currentTopKData = null;
             if (copyTopKButton) copyTopKButton.disabled = true;
+            if (autoGenerateButton) autoGenerateButton.disabled = true;
 
             try {
                 const startTime = performance.now();
@@ -554,41 +626,51 @@
                 }
                 if (data.error_message) { throw new Error(data.error_message); }
                 
-                Plotly.purge(chartDiv); // Clear previous plot and events
+                Plotly.purge(chartDiv);
 
                 // Calculate and display metrics
                 const entropy = data.entropy;
                 const perplexity = Math.pow(2, entropy);
                 const sumTopKProb = data.top_k_probabilities.reduce((sum, p) => sum + p, 0);
                 const otherProb = Math.max(0, 1 - sumTopKProb);
+                const coverage95 = data.coverage_95 || 0;
+                const distShape = classifyDistribution(data.top_k_probabilities);
 
                 if (entropyDisplay) {
                     entropyDisplay.textContent = `Entropy: ${entropy.toFixed(3)} bits`;
                     entropyDisplay.style.color = getEntropyColor(entropy);
                 }
                 if (perplexityDisplay) {
-                    perplexityDisplay.textContent = `Perplexity: ${perplexity.toFixed(1)}`;
+                    perplexityDisplay.textContent = `PPL: ${perplexity.toFixed(1)}`;
+                }
+                if (distributionShape && distShape.label) {
+                    distributionShape.textContent = distShape.label;
+                    distributionShape.className = `distribution-badge ${distShape.class}`;
                 }
                 if (cumulativeProbDisplay) {
-                    cumulativeProbDisplay.textContent = `Top K: ${(sumTopKProb * 100).toFixed(1)}%`;
+                    cumulativeProbDisplay.textContent = `Top ${data.top_k_tokens.length}: ${(sumTopKProb * 100).toFixed(1)}%`;
                 }
                 if (otherProbDisplay) {
                     otherProbDisplay.textContent = `Other: ${(otherProb * 100).toFixed(1)}%`;
                 }
-                
-                displayInputTokenization(data.input_tokens_display, data.input_token_ids_display);
+                if (coverageDisplay) {
+                    coverageDisplay.textContent = `95% in ${coverage95} tokens`;
+                }
+
+                displayInputTokenization(data.input_tokens_display, data.input_token_ids_display, data.input_token_surprises || []);
                 
                 if (isUserInput || (inputHistory.length === 0 || inputHistory[0].text !== text)) {
                     addInputToHistory(text, data.entropy);
                 }
                 addDataToEntropyTrend(text.length, data.entropy);
 
-                currentTopKData = { 
-                    tokens: data.top_k_tokens, // Cleaned tokens
-                    raw_tokens: data.top_k_raw_tokens, // Raw tokens
+                currentTopKData = {
+                    tokens: data.top_k_tokens,
+                    raw_tokens: data.top_k_raw_tokens,
                     probabilities: data.top_k_probabilities
                 };
-                if(copyTopKButton) copyTopKButton.disabled = false;
+                if (copyTopKButton) copyTopKButton.disabled = false;
+                if (autoGenerateButton) autoGenerateButton.disabled = false;
 
                 const originalTokensForClick = data.top_k_tokens; // Always use cleaned tokens for click-to-append
                 const chartXLabels = showRawTokensInChart 
@@ -633,11 +715,13 @@
                 updateGlobalStatus(`Ready. (Fetch time: ${duration}s)`, 'success');
             } catch (error) {
                 updateGlobalStatus(`Error: ${error.message}`, 'error');
-                console.error("Update visualization error:", error);
+                console.error("Visualization error:", error);
                 if (entropyDisplay) { entropyDisplay.textContent = 'Entropy: Error'; entropyDisplay.style.color = '#dc3545'; }
-                if (perplexityDisplay) perplexityDisplay.textContent = 'Perplexity: -';
+                if (perplexityDisplay) perplexityDisplay.textContent = 'PPL: -';
+                if (distributionShape) { distributionShape.textContent = ''; distributionShape.className = ''; }
                 if (cumulativeProbDisplay) cumulativeProbDisplay.textContent = 'Top K: -';
                 if (otherProbDisplay) otherProbDisplay.textContent = 'Other: -';
+                if (coverageDisplay) coverageDisplay.textContent = '95% coverage: -';
                 Plotly.purge(chartDiv);
             } 
             finally { isFetchingPrediction = false; }
@@ -703,10 +787,13 @@
             });
         }
 
+        if (autoGenerateButton) autoGenerateButton.addEventListener('click', autoGenerate);
+        if (exportChartButton) exportChartButton.addEventListener('click', exportChart);
+
         if (surpriseMeButton) surpriseMeButton.addEventListener('click', () => {
             textInput.value = surprisePhrases[Math.floor(Math.random() * surprisePhrases.length)];
             clearTimeout(debounceTimer);
-            resetEntropyTrend(); // Reset trend for new distinct input
+            resetEntropyTrend();
             updateVisualization(true);
         });
         if (clearTextButton) clearTextButton.addEventListener('click', () => {
@@ -714,7 +801,7 @@
             resetEntropyTrend();
             clearTimeout(debounceTimer);
             updateVisualization(true);
-            displayInputTokenization([],[]);
+            displayInputTokenization([], [], []);
         });
         
         if (helpButton) helpButton.addEventListener('click', () => { if (helpModal) helpModal.style.display = "block"; });
@@ -725,7 +812,9 @@
         // Global keyboard shortcuts
         document.addEventListener('keydown', (event) => {
             if (document.activeElement === textInput) return;
-            if (event.key.toLowerCase() === 'd') toggleTheme();
+            const key = event.key.toLowerCase();
+            if (key === 'd') toggleTheme();
+            if (key === 'g' && modelReady) autoGenerate();
         });
 
         if (textInput) {
@@ -774,10 +863,11 @@
         loadSettings();
         const savedDarkMode = localStorage.getItem('entropyVisDarkMode');
         setTheme(savedDarkMode === 'true');
-        if (temperatureValueDisplay && temperatureInput) { temperatureValueDisplay.textContent = parseFloat(temperatureInput.value).toFixed(2); }
-        if (topPValueDisplay && topPInput) { topPValueDisplay.textContent = parseFloat(topPInput.value).toFixed(2); }
-        if (modelNameDisplay) { modelNameDisplay.textContent = currentModelDisplayName; }
+        if (temperatureValueDisplay && temperatureInput) temperatureValueDisplay.textContent = parseFloat(temperatureInput.value).toFixed(2);
+        if (topPValueDisplay && topPInput) topPValueDisplay.textContent = parseFloat(topPInput.value).toFixed(2);
+        if (modelNameDisplay) modelNameDisplay.textContent = currentModelDisplayName;
         if (copyTopKButton) copyTopKButton.disabled = true;
+        if (autoGenerateButton) autoGenerateButton.disabled = true;
         updateInputHistoryDisplay();
         updateEntropyTrendChart();
         checkModelStatus(); 
