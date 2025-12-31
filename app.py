@@ -1,8 +1,6 @@
-# app.py (in the root of entropy-visual/)
-
 from flask import Flask, request, jsonify, render_template
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from transformers.generation.logits_process import TopPLogitsWarper # For Top-P
+from transformers.generation.logits_process import TopPLogitsWarper
 import torch
 import torch.nn.functional as F
 from scipy.stats import entropy
@@ -241,29 +239,26 @@ def get_entropy_api():
             return jsonify({"error": "Invalid JSON payload"}), 400
             
         text = data.get('text', '')
-        top_k_req = data.get('top_k', DEFAULT_TOP_K_PREDICTIONS)
-        temperature_req = data.get('temperature', DEFAULT_TEMPERATURE)
-        top_p_req = data.get('top_p', DEFAULT_TOP_P) # New: Get Top-P
 
-        try:
-            top_k = int(top_k_req)
-            if not (1 <= top_k <= MAX_TOP_K_PREDICTIONS):
-                top_k = DEFAULT_TOP_K_PREDICTIONS
-        except ValueError: top_k = DEFAULT_TOP_K_PREDICTIONS
-        
-        try:
-            temperature = float(temperature_req)
-            temperature = max(MIN_TEMPERATURE, min(temperature, MAX_TEMPERATURE))
-        except ValueError: temperature = DEFAULT_TEMPERATURE
+        def parse_int(val, default, min_val, max_val):
+            try:
+                v = int(val)
+                return v if min_val <= v <= max_val else default
+            except (ValueError, TypeError):
+                return default
 
-        try: # New: Parse Top-P
-            top_p = float(top_p_req)
-            top_p = max(MIN_TOP_P, min(top_p, MAX_TOP_P))
-        except ValueError: top_p = DEFAULT_TOP_P
+        def parse_float(val, default, min_val, max_val):
+            try:
+                return max(min_val, min(float(val), max_val))
+            except (ValueError, TypeError):
+                return default
 
+        top_k = parse_int(data.get('top_k'), DEFAULT_TOP_K_PREDICTIONS, 1, MAX_TOP_K_PREDICTIONS)
+        temperature = parse_float(data.get('temperature'), DEFAULT_TEMPERATURE, MIN_TEMPERATURE, MAX_TEMPERATURE)
+        top_p = parse_float(data.get('top_p'), DEFAULT_TOP_P, MIN_TOP_P, MAX_TOP_P)
 
         logging.info(f"API Request: Text (len {len(text)}), TopK: {top_k}, Temp: {temperature:.2f}, TopP: {top_p:.2f}, Model: {model_state['model_name']}")
-        predictions = get_next_token_predictions(text, top_k=top_k, temperature=temperature, top_p=top_p) # Pass top_p
+        predictions = get_next_token_predictions(text, top_k=top_k, temperature=temperature, top_p=top_p)
         end_time = time.time()
 
         if "error_message" in predictions:
