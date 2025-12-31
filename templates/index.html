@@ -1,4 +1,3 @@
-<!-- templates/index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,72 +6,124 @@
     <title>LLM Entropy Visualizer</title>
     <script src='https://cdn.plot.ly/plotly-2.29.1.min.js'></script>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol"; display: flex; flex-direction: column; align-items: center; margin-top: 15px; background-color: #f8f9fa; color: #212529; font-size: 15px;}
-        h1 { color: #343a40; text-align: center; margin-bottom: 5px; font-size: 1.8em;}
-        #model-info-header { text-align: center; color: #495057; margin-bottom: 10px; font-size: 1.1em; }
+        :root {
+            --bg-primary: #f8f9fa;
+            --bg-panel: #ffffff;
+            --bg-input: #e9ecef;
+            --text-primary: #212529;
+            --text-secondary: #495057;
+            --text-muted: #6c757d;
+            --border-color: #ced4da;
+            --border-light: #e0e0e0;
+            --accent: #007bff;
+            --accent-hover: #0056b3;
+            --btn-bg: #6c757d;
+            --btn-hover: #5a6268;
+            --shadow: rgba(0,0,0,0.08);
+            --token-bg: #fff;
+            --token-border: #ddd;
+        }
+        [data-theme="dark"] {
+            --bg-primary: #1a1a2e;
+            --bg-panel: #16213e;
+            --bg-input: #0f3460;
+            --text-primary: #e4e4e4;
+            --text-secondary: #b8b8b8;
+            --text-muted: #888;
+            --border-color: #2a2a4a;
+            --border-light: #2a2a4a;
+            --accent: #4dabf7;
+            --accent-hover: #74c0fc;
+            --btn-bg: #3d5a80;
+            --btn-hover: #4a6fa5;
+            --shadow: rgba(0,0,0,0.3);
+            --token-bg: #0f3460;
+            --token-border: #3d5a80;
+        }
+        * { transition: background-color 0.2s, color 0.2s, border-color 0.2s; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex; flex-direction: column; align-items: center;
+            margin-top: 15px; background-color: var(--bg-primary); color: var(--text-primary); font-size: 15px;
+        }
+        h1 { color: var(--text-primary); text-align: center; margin-bottom: 5px; font-size: 1.8em; }
+        #model-info-header { text-align: center; color: var(--text-secondary); margin-bottom: 10px; font-size: 1.1em; }
         #app-container { display: flex; flex-direction: column; width: 96%; max-width: 1300px; gap: 20px; }
-        
-        .panel { background-color: #ffffff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.08); }
+
+        .panel {
+            background-color: var(--bg-panel); padding: 20px; border-radius: 8px;
+            box-shadow: 0 4px 8px var(--shadow); border: 1px solid var(--border-light);
+        }
 
         #config-panel { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-end; justify-content: space-between; }
-        .config-group { display: flex; flex-wrap: wrap; gap: 15px 20px; align-items: flex-start; } 
-        .config-item { display: flex; flex-direction: column; gap: 5px; min-width: 150px;}
-        .config-item label, .config-item .checkbox-label { font-size: 0.9em; color: #495057; }
+        .config-group { display: flex; flex-wrap: wrap; gap: 15px 20px; align-items: flex-start; }
+        .config-item { display: flex; flex-direction: column; gap: 5px; min-width: 150px; }
+        .config-item label, .config-item .checkbox-label { font-size: 0.9em; color: var(--text-secondary); }
         .config-item input[type="number"], .config-item input[type="range"] {
-            padding: 8px 10px; font-size: 0.95em; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; width: 100%;
+            padding: 8px 10px; font-size: 0.95em; border: 1px solid var(--border-color);
+            border-radius: 4px; box-sizing: border-box; width: 100%;
+            background: var(--bg-panel); color: var(--text-primary);
         }
-        .config-item input[type="number"] { max-width: 100px;}
+        .config-item input[type="number"] { max-width: 100px; }
         .config-item input[type="checkbox"] { margin-right: 5px; vertical-align: middle; }
-        #temperature-value, #top-p-value { font-weight: bold; color: #007bff; } /* Combined for temp and top-p */
-        .action-buttons button { padding: 8px 12px; font-size: 0.9em; border: 1px solid #6c757d; border-radius: 4px; background-color: #6c757d; color: white; cursor: pointer; transition: background-color 0.2s; }
-        .action-buttons button:hover { background-color: #5a6268; }
-        .action-buttons button:disabled { background-color: #adb5bd; cursor: not-allowed;}
-        .action-buttons { display: flex; gap: 10px; align-items: center;}
+        #temperature-value, #top-p-value { font-weight: bold; color: var(--accent); }
+        .action-buttons button {
+            padding: 8px 12px; font-size: 0.9em; border: 1px solid var(--btn-bg); border-radius: 4px;
+            background-color: var(--btn-bg); color: white; cursor: pointer; transition: all 0.2s;
+        }
+        .action-buttons button:hover { background-color: var(--btn-hover); }
+        .action-buttons button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .action-buttons { display: flex; gap: 10px; align-items: center; }
+        #theme-toggle { font-size: 1.2em; padding: 6px 10px; }
 
-        #main-content-wrapper { display: flex; flex-direction: column; gap: 20px; } 
-        #main-content { display: flex; flex-direction: column; gap: 20px; flex-grow: 1;} 
-        #side-panel { flex-shrink: 0; display: flex; flex-direction: column; gap: 20px; } 
-        
+        #main-content-wrapper { display: flex; flex-direction: column; gap: 20px; }
+        #main-content { display: flex; flex-direction: column; gap: 20px; flex-grow: 1; }
+        #side-panel { flex-shrink: 0; display: flex; flex-direction: column; gap: 20px; }
+
         @media (min-width: 992px) {
-            #main-content-wrapper { flex-direction: row; } 
-            #main-content { flex-grow: 1; display: flex; flex-direction: column;} 
-            #input-analysis-section { flex: 2; } 
-            #output-section { flex: 3; } 
+            #main-content-wrapper { flex-direction: row; }
+            #main-content { flex-grow: 1; display: flex; flex-direction: column; }
+            #input-analysis-section { flex: 2; }
+            #output-section { flex: 3; }
             #side-panel { width: 300px; max-width: 300px; }
         }
-        @media (max-width: 991px) { 
-            #side-panel { order: 3; } 
-        }
+        @media (max-width: 991px) { #side-panel { order: 3; } }
 
         #input-analysis-section { display: flex; flex-direction: column; gap: 15px; }
         .input-label-container { display: flex; justify-content: space-between; align-items: center; }
         .input-label-container button { font-size: 0.85em; padding: 4px 8px; }
-        textarea { width: 100%; min-height: 150px; font-size: 1.05em; padding: 12px; box-sizing: border-box; border: 1px solid #ced4da; border-radius: 4px; resize: vertical; }
-        
-        #status-bar { display: flex; justify-content: space-between; align-items: center; gap: 15px; margin-top: 10px; padding: 8px 0; flex-wrap: wrap;}
-        #entropy-info { display: flex; flex-direction: column; gap: 3px; }
-        #entropy-display { font-size: 1.3em; font-weight: bold; color: #007bff; white-space: nowrap; }
-        #cumulative-prob-display { font-size: 0.9em; color: #495057; }
-        #global-status-container { display: flex; align-items: center; gap: 8px; font-style: italic; color: #6c757d; flex-grow: 1; justify-content: flex-end;}
-        .spinner { border: 3px solid #f3f3f3; border-top: 3px solid #3498db; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; display: none; }
+        textarea {
+            width: 100%; min-height: 150px; font-size: 1.05em; padding: 12px; box-sizing: border-box;
+            border: 1px solid var(--border-color); border-radius: 4px; resize: vertical;
+            background: var(--bg-panel); color: var(--text-primary);
+        }
+
+        #status-bar { display: flex; justify-content: space-between; align-items: center; gap: 15px; margin-top: 10px; padding: 8px 0; flex-wrap: wrap; }
+        #metrics-display { display: flex; flex-direction: column; gap: 4px; }
+        .metric-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+        #entropy-display { font-size: 1.3em; font-weight: bold; white-space: nowrap; transition: color 0.3s; }
+        #perplexity-display { font-size: 1.1em; font-weight: 500; color: var(--text-secondary); white-space: nowrap; }
+        #prob-stats { font-size: 0.9em; color: var(--text-secondary); display: flex; gap: 12px; flex-wrap: wrap; }
+        #global-status-container { display: flex; align-items: center; gap: 8px; font-style: italic; color: var(--text-muted); flex-grow: 1; justify-content: flex-end; }
+        .spinner { border: 3px solid var(--border-light); border-top: 3px solid var(--accent); border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; display: none; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        #input-tokenization-display { margin-top: 10px; padding: 10px; background-color: #e9ecef; border-radius: 4px; font-size: 0.9em; max-height: 100px; overflow-y: auto; }
-        #input-tokenization-display .token { background-color: #fff; padding: 2px 5px; margin: 2px; border-radius: 3px; border: 1px solid #ddd; display: inline-block; font-family: monospace;}
-        #input-tokenization-display .token .token-id { font-size: 0.8em; color: #888; margin-left: 3px;}
+        #input-tokenization-display { margin-top: 10px; padding: 10px; background-color: var(--bg-input); border-radius: 4px; font-size: 0.9em; max-height: 100px; overflow-y: auto; }
+        #input-tokenization-display .token { background-color: var(--token-bg); padding: 2px 5px; margin: 2px; border-radius: 3px; border: 1px solid var(--token-border); display: inline-block; font-family: monospace; }
+        #input-tokenization-display .token .token-id { font-size: 0.8em; color: var(--text-muted); margin-left: 3px; }
 
         #output-section { display: flex; flex-direction: column; }
-        .chart-controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap:10px;}
-        .chart-controls .config-item {flex-direction: row; align-items: center; gap: 5px;} /* For checkboxes */
+        .chart-controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 10px; }
+        .chart-controls .config-item { flex-direction: row; align-items: center; gap: 5px; }
         #probability-chart { width: 100%; min-height: 400px; }
-        
-        .side-panel-section h4 { margin-top: 0; margin-bottom: 10px; font-size: 1.05em; color: #343a40; display: flex; justify-content: space-between; align-items: center;}
-        .side-panel-section h4 button { font-size: 0.75em; padding: 3px 6px;}
-        #input-history-list { list-style: none; padding: 0; margin: 0; max-height: 150px; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: 4px;}
-        #input-history-list li { padding: 6px 10px; font-size: 0.85em; cursor: pointer; border-bottom: 1px solid #eee; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        .side-panel-section h4 { margin-top: 0; margin-bottom: 10px; font-size: 1.05em; color: var(--text-primary); display: flex; justify-content: space-between; align-items: center; }
+        .side-panel-section h4 button { font-size: 0.75em; padding: 3px 6px; }
+        #input-history-list { list-style: none; padding: 0; margin: 0; max-height: 150px; overflow-y: auto; border: 1px solid var(--border-light); border-radius: 4px; }
+        #input-history-list li { padding: 6px 10px; font-size: 0.85em; cursor: pointer; border-bottom: 1px solid var(--border-light); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         #input-history-list li:last-child { border-bottom: none; }
-        #input-history-list li:hover { background-color: #f0f0f0; }
-        #input-history-list li .history-entropy { float: right; color: #007bff; font-weight: bold; margin-left: 10px;}
+        #input-history-list li:hover { background-color: var(--bg-input); }
+        #input-history-list li .history-entropy { float: right; color: var(--accent); font-weight: bold; margin-left: 10px; }
         #entropy-trend-chart { width: 100%; min-height: 200px; }
 
         .error-message { color: #dc3545; font-weight: bold; }
@@ -80,15 +131,15 @@
         .success-message { color: #28a745; }
         button:disabled, input:disabled { cursor: not-allowed; opacity: 0.7; }
 
-        #help-modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4); padding-top: 60px;}
-        .help-modal-content { background-color: #fefefe; margin: 5% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 700px; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
-        .help-modal-content h2 { margin-top: 0;}
+        #help-modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); padding-top: 60px; }
+        .help-modal-content { background-color: var(--bg-panel); color: var(--text-primary); margin: 5% auto; padding: 20px; border: 1px solid var(--border-color); width: 80%; max-width: 700px; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        .help-modal-content h2 { margin-top: 0; }
         .help-modal-content ul { padding-left: 20px; }
         .help-modal-content li { margin-bottom: 5px; }
-        .help-modal-content kbd { background-color: #eee; border-radius: 3px; border: 1px solid #b4b4b4; box-shadow: 0 1px 1px rgba(0, 0, 0, .2), 0 2px 0 0 rgba(255, 255, 255, .7) inset; color: #333; display: inline-block; font-size: .85em; font-weight: 700; line-height: 1; padding: 2px 4px; white-space: nowrap;}
-        .close-help-button { color: #aaa; float: right; font-size: 28px; font-weight: bold; }
-        .close-help-button:hover, .close-help-button:focus { color: black; text-decoration: none; cursor: pointer; }
-        .copy-feedback { font-size: 0.8em; color: green; margin-left: 5px; opacity: 0; transition: opacity 0.5s;}
+        .help-modal-content kbd { background-color: var(--bg-input); border-radius: 3px; border: 1px solid var(--border-color); color: var(--text-primary); display: inline-block; font-size: .85em; font-weight: 700; line-height: 1; padding: 2px 4px; white-space: nowrap; }
+        .close-help-button { color: var(--text-muted); float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .close-help-button:hover { color: var(--text-primary); }
+        .copy-feedback { font-size: 0.8em; color: #28a745; margin-left: 5px; opacity: 0; transition: opacity 0.3s; }
         .copy-feedback.show { opacity: 1; }
     </style>
 </head>
@@ -115,6 +166,7 @@
             <div class="action-buttons">
                 <button id="surprise-me-button" title="Fill input with a random phrase">🎲 Surprise Me</button>
                 <button id="help-button" title="Show help information">❓ Help</button>
+                <button id="theme-toggle" title="Toggle dark/light mode">🌙</button>
             </div>
         </div>
 
@@ -130,10 +182,16 @@
                         <label>Input Tokenization:</label>
                         <div id="input-tokenization-display">No input text.</div>
                     </div>
-                     <div id="status-bar">
-                        <div id="entropy-info">
-                            <div id="entropy-display">Entropy: -</div>
-                            <div id="cumulative-prob-display">Top K Cum. Prob: -</div>
+                    <div id="status-bar">
+                        <div id="metrics-display">
+                            <div class="metric-row">
+                                <div id="entropy-display">Entropy: -</div>
+                                <div id="perplexity-display">Perplexity: -</div>
+                            </div>
+                            <div id="prob-stats">
+                                <span id="cumulative-prob-display">Top K: -</span>
+                                <span id="other-prob-display">Other: -</span>
+                            </div>
                         </div>
                         <div id="global-status-container">
                             <div class="spinner" id="loading-spinner"></div>
@@ -186,31 +244,31 @@
             <span class="close-help-button" id="close-help-modal-button">×</span>
             <h2>LLM Entropy Visualizer - Help</h2>
             <p>This tool visualizes the next token predictions of a Language Model (LLM) and calculates the Shannon entropy of its probability distribution.</p>
-            <h4>Features:</h4>
+            <h4>Metrics</h4>
             <ul>
-                <li><strong>Text Input:</strong> Type any text. Predictions update automatically.
-                    <ul>
-                        <li><kbd>Ctrl</kbd>+<kbd>Enter</kbd> or <kbd>Cmd</kbd>+<kbd>Enter</kbd> to submit immediately.</li>
-                        <li><kbd>Esc</kbd> to clear the input field.</li>
-                    </ul>
-                </li>
-                <li><strong>Top K Tokens:</strong> Adjust how many of the most probable next tokens are displayed.</li>
-                <li><strong>Temperature:</strong> Controls the randomness of the predictions. Lower is more deterministic, higher is more random.</li>
-                <li><strong>Top-P (Nucleus Sampling):</strong> Filters predictions to the smallest set of tokens whose cumulative probability exceeds 'P'. A P of 1.0 is off. Lower values make output more focused.</li>
-                <li><strong>Entropy:</strong> Measures uncertainty. Low = confident, High = uncertain.</li>
-                <li><strong>Top K Cumulative Probability:</strong> Sum of probabilities for the displayed Top K tokens.</li>
-                <li><strong>Input Tokenization:</strong> Shows how your input text is tokenized.</li>
-                <li><strong>Probability Chart:</strong> Visualizes next token probabilities. Click a bar to append the (cleaned) token.</li>
-                <li><strong>Log Scale for Probabilities:</strong> Toggle to view y-axis on a logarithmic scale. Useful for skewed distributions.</li>
-                <li><strong>Show Raw Tokens in Chart:</strong> Toggle to display raw model tokens (e.g., with `Ġ`) or cleaned tokens on the chart's X-axis.</li>
-                <li><strong>Copy Top K:</strong> Copies tokens and probabilities to clipboard.</li>
-                <li><strong>Surprise Me:</strong> Fills input with a random phrase.</li>
-                <li><strong>Clear Button (Text Input):</strong> Clears the text input area (also <kbd>Esc</kbd> key).</li>
-                <li><strong>Input History:</strong> Recent inputs and their entropy. Click to reload. Can be cleared.</li>
-                <li><strong>Entropy Trend:</strong> Plots entropy against input length for the current session. Can be cleared.</li>
-                <li><strong>Persistent Settings:</strong> Top-K, Temperature, Top-P, Log Scale, and Raw Token display preferences are saved in your browser.</li>
+                <li><strong>Entropy:</strong> Shannon entropy in bits. Low = confident prediction, High = uncertain. Color-coded from green (low) to red (high).</li>
+                <li><strong>Perplexity:</strong> 2<sup>entropy</sup>. Represents the "effective vocabulary size" the model is choosing from. A perplexity of 10 means the model is as uncertain as if choosing uniformly from 10 equally likely tokens.</li>
+                <li><strong>Top K / Other:</strong> Probability mass in your displayed tokens vs. the rest of the vocabulary.</li>
             </ul>
-            <p><em>Model Used: GPT-2 (Small)</em></p>
+            <h4>Controls</h4>
+            <ul>
+                <li><strong>Top K:</strong> Number of most probable tokens to display (1-50).</li>
+                <li><strong>Temperature:</strong> Scales logits before softmax. Lower = sharper distribution (more confident), Higher = flatter (more random).</li>
+                <li><strong>Top-P:</strong> Nucleus sampling threshold. Keeps smallest set of tokens with cumulative probability ≥ P. Set to 1.0 to disable.</li>
+            </ul>
+            <h4>Keyboard Shortcuts</h4>
+            <ul>
+                <li><kbd>Ctrl</kbd>+<kbd>Enter</kbd> / <kbd>Cmd</kbd>+<kbd>Enter</kbd> — Submit immediately</li>
+                <li><kbd>Esc</kbd> — Clear input</li>
+                <li><kbd>D</kbd> — Toggle dark mode (when not focused on input)</li>
+            </ul>
+            <h4>Tips</h4>
+            <ul>
+                <li>Click any bar in the chart to append that token to your input.</li>
+                <li>Use log scale for highly skewed distributions.</li>
+                <li>Settings persist in your browser's localStorage.</li>
+            </ul>
+            <p><em>Model: GPT-2 (124M parameters)</em></p>
         </div>
     </div>
 
@@ -218,7 +276,9 @@
         // DOM Elements
         const textInput = document.getElementById('text-input');
         const entropyDisplay = document.getElementById('entropy-display');
+        const perplexityDisplay = document.getElementById('perplexity-display');
         const cumulativeProbDisplay = document.getElementById('cumulative-prob-display');
+        const otherProbDisplay = document.getElementById('other-prob-display');
         const chartDiv = document.getElementById('probability-chart');
         const globalStatusDiv = document.getElementById('global-status');
         const topKInput = document.getElementById('top-k-input');
@@ -232,6 +292,7 @@
         const surpriseMeButton = document.getElementById('surprise-me-button');
         const clearTextButton = document.getElementById('clear-text-button');
         const helpButton = document.getElementById('help-button');
+        const themeToggle = document.getElementById('theme-toggle');
         const helpModal = document.getElementById('help-modal');
         const closeHelpModalButton = document.getElementById('close-help-modal-button');
         const inputHistoryList = document.getElementById('input-history-list');
@@ -244,7 +305,33 @@
         const clearHistoryButton = document.getElementById('clear-history-button');
         const clearTrendButton = document.getElementById('clear-trend-button');
 
-        const allControls = [textInput, topKInput, temperatureInput, topPInput, surpriseMeButton, clearTextButton, helpButton, logScaleCheckbox, rawTokensCheckbox, copyTopKButton, clearHistoryButton, clearTrendButton];
+        const allControls = [textInput, topKInput, temperatureInput, topPInput, surpriseMeButton, clearTextButton, helpButton, themeToggle, logScaleCheckbox, rawTokensCheckbox, copyTopKButton, clearHistoryButton, clearTrendButton];
+
+        // Entropy color scale: green (low/confident) -> yellow -> red (high/uncertain)
+        function getEntropyColor(entropy) {
+            const maxEntropy = 12; // GPT-2 vocab ~50k, log2(50000) ≈ 15.6, but typical max is lower
+            const t = Math.min(entropy / maxEntropy, 1);
+            if (t < 0.5) {
+                // Green to Yellow
+                const r = Math.round(255 * (t * 2));
+                return `rgb(${r}, 180, 50)`;
+            } else {
+                // Yellow to Red
+                const g = Math.round(180 * (1 - (t - 0.5) * 2));
+                return `rgb(255, ${g}, 50)`;
+            }
+        }
+
+        // Theme management
+        function setTheme(dark) {
+            document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+            if (themeToggle) themeToggle.textContent = dark ? '☀️' : '🌙';
+            localStorage.setItem('entropyVisDarkMode', dark);
+        }
+        function toggleTheme() {
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            setTheme(!isDark);
+        }
 
         // State
         let debounceTimer;
@@ -442,10 +529,12 @@
 
             if (isUserInput) { updateGlobalStatus('Fetching predictions...', 'info'); }
             isFetchingPrediction = true;
-            if(entropyDisplay) entropyDisplay.textContent = 'Entropy: Calculating...';
-            if(cumulativeProbDisplay) cumulativeProbDisplay.textContent = 'Top K Cum. Prob: -';
-            currentTopKData = null; 
-            if(copyTopKButton) copyTopKButton.disabled = true;
+            if (entropyDisplay) { entropyDisplay.textContent = 'Entropy: ...'; entropyDisplay.style.color = 'var(--accent)'; }
+            if (perplexityDisplay) perplexityDisplay.textContent = 'Perplexity: ...';
+            if (cumulativeProbDisplay) cumulativeProbDisplay.textContent = 'Top K: -';
+            if (otherProbDisplay) otherProbDisplay.textContent = 'Other: -';
+            currentTopKData = null;
+            if (copyTopKButton) copyTopKButton.disabled = true;
 
             try {
                 const startTime = performance.now();
@@ -466,10 +555,26 @@
                 if (data.error_message) { throw new Error(data.error_message); }
                 
                 Plotly.purge(chartDiv); // Clear previous plot and events
-                if(entropyDisplay) entropyDisplay.textContent = `Entropy: ${data.entropy.toFixed(4)}`;
-                
+
+                // Calculate and display metrics
+                const entropy = data.entropy;
+                const perplexity = Math.pow(2, entropy);
                 const sumTopKProb = data.top_k_probabilities.reduce((sum, p) => sum + p, 0);
-                if(cumulativeProbDisplay) cumulativeProbDisplay.textContent = `Top K Cum. Prob: ${(sumTopKProb * 100).toFixed(2)}%`;
+                const otherProb = Math.max(0, 1 - sumTopKProb);
+
+                if (entropyDisplay) {
+                    entropyDisplay.textContent = `Entropy: ${entropy.toFixed(3)} bits`;
+                    entropyDisplay.style.color = getEntropyColor(entropy);
+                }
+                if (perplexityDisplay) {
+                    perplexityDisplay.textContent = `Perplexity: ${perplexity.toFixed(1)}`;
+                }
+                if (cumulativeProbDisplay) {
+                    cumulativeProbDisplay.textContent = `Top K: ${(sumTopKProb * 100).toFixed(1)}%`;
+                }
+                if (otherProbDisplay) {
+                    otherProbDisplay.textContent = `Other: ${(otherProb * 100).toFixed(1)}%`;
+                }
                 
                 displayInputTokenization(data.input_tokens_display, data.input_token_ids_display);
                 
@@ -529,8 +634,10 @@
             } catch (error) {
                 updateGlobalStatus(`Error: ${error.message}`, 'error');
                 console.error("Update visualization error:", error);
-                if(entropyDisplay) entropyDisplay.textContent = 'Entropy: Error';
-                if(cumulativeProbDisplay) cumulativeProbDisplay.textContent = 'Top K Cum. Prob: -';
+                if (entropyDisplay) { entropyDisplay.textContent = 'Entropy: Error'; entropyDisplay.style.color = '#dc3545'; }
+                if (perplexityDisplay) perplexityDisplay.textContent = 'Perplexity: -';
+                if (cumulativeProbDisplay) cumulativeProbDisplay.textContent = 'Top K: -';
+                if (otherProbDisplay) otherProbDisplay.textContent = 'Other: -';
                 Plotly.purge(chartDiv);
             } 
             finally { isFetchingPrediction = false; }
@@ -612,7 +719,14 @@
         
         if (helpButton) helpButton.addEventListener('click', () => { if (helpModal) helpModal.style.display = "block"; });
         if (closeHelpModalButton) closeHelpModalButton.addEventListener('click', () => { if (helpModal) helpModal.style.display = "none"; });
+        if (themeToggle) themeToggle.addEventListener('click', toggleTheme);
         window.onclick = function(event) { if (event.target === helpModal) { helpModal.style.display = "none"; } }
+
+        // Global keyboard shortcuts
+        document.addEventListener('keydown', (event) => {
+            if (document.activeElement === textInput) return;
+            if (event.key.toLowerCase() === 'd') toggleTheme();
+        });
 
         if (textInput) {
             textInput.addEventListener('input', handleTextInput);
@@ -657,7 +771,9 @@
         if (clearTrendButton) clearTrendButton.addEventListener('click', resetEntropyTrend);
 
         // --- Initializations ---
-        loadSettings(); // Load saved settings first
+        loadSettings();
+        const savedDarkMode = localStorage.getItem('entropyVisDarkMode');
+        setTheme(savedDarkMode === 'true');
         if (temperatureValueDisplay && temperatureInput) { temperatureValueDisplay.textContent = parseFloat(temperatureInput.value).toFixed(2); }
         if (topPValueDisplay && topPInput) { topPValueDisplay.textContent = parseFloat(topPInput.value).toFixed(2); }
         if (modelNameDisplay) { modelNameDisplay.textContent = currentModelDisplayName; }
